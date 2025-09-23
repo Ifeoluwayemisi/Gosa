@@ -13,42 +13,77 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-
 model User {
-  id        Int             @id @default(autoincrement())
-  name      String
-  email     String           @unique
-  password  String
-  role      Role             @default(CUSTOMER)
-  orders    Order[]
-  customizations Customization[]   // back relation added
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
+  id                Int                @id @default(autoincrement())
+  name              String
+  email             String             @unique
+  password          String
+  role              Role               @default(CUSTOMER)
+  orders            Order[]
+  activityLogs      ActivityLog[]
+  cart              Cart[]
+  customizations    Customization[]
+  couponRedemptions CouponRedemption[]
+  addresses         Address[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  isDeleted         Boolean            @default(false)
 }
 
 model Product {
-  id          Int             @id @default(autoincrement())
-  name        String
-  category    String
-  price       Float
-  description String
-  images      Json            // changed from String[]
-  stock       Int
-  orderItems  OrderItem[]
-  customizations Customization[]   // back relation added
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  id             Int             @id @default(autoincrement())
+  name           String
+  categoryId     Int
+  category       Category        @relation(fields: [categoryId], references: [id])
+  price          Float
+  description    String
+  images         ProductImage[]
+  stock          Int?
+  variants       Variant[]
+  orderItems     OrderItem[]
+  customizations Customization[]
+  cartItems      CartItem[]
+  couponProducts CouponProduct[]
+  isActive       Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  isDeleted      Boolean         @default(false)
+}
+
+model ProductImage {
+  id        Int     @id @default(autoincrement())
+  product   Product @relation(fields: [productId], references: [id])
+  productId Int
+  url       String
+  altText   String?
+}
+
+model ActivityLog {
+  id        Int      @id @default(autoincrement())
+  user      User?    @relation(fields: [userId], references: [id])
+  userId    Int?
+  action    String // e.g. "LOGIN", "ADD_TO_CART", "ORDER_PLACED"
+  metadata  Json? // store extra details like { productId: 1, quantity: 2 }
+  createdAt DateTime @default(now())
 }
 
 model Order {
-  id        Int         @id @default(autoincrement())
-  user      User        @relation(fields: [userId], references: [id])
-  userId    Int
-  status    OrderStatus @default(PENDING)
-  total     Float
-  items     OrderItem[]
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
+  id                Int                @id @default(autoincrement())
+  user              User               @relation(fields: [userId], references: [id])
+  userId            Int
+  status            OrderStatus        @default(PENDING)
+  total             Float
+  items             OrderItem[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  isDeleted         Boolean            @default(false)
+  subtotal          Float
+  discount          Float              @default(0)
+  shipping          Float              @default(0)
+  tax               Float              @default(0)
+  shippingAddress   Json
+  payments          Payment[]
+  couponRedemptions CouponRedemption[]
 }
 
 model OrderItem {
@@ -59,6 +94,7 @@ model OrderItem {
   productId Int
   quantity  Int
   price     Float
+  isDeleted Boolean @default(false)
 }
 
 model Customization {
@@ -69,6 +105,123 @@ model Customization {
   userId    Int
   options   Json
   createdAt DateTime @default(now())
+  isDeleted Boolean  @default(false)
+}
+
+model Cart {
+  id        Int        @id @default(autoincrement())
+  user      User       @relation(fields: [userId], references: [id])
+  userId    Int
+  items     CartItem[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  isDeleted Boolean    @default(false)
+}
+
+model CartItem {
+  id        Int     @id @default(autoincrement())
+  cart      Cart    @relation(fields: [cartId], references: [id])
+  cartId    Int
+  product   Product @relation(fields: [productId], references: [id])
+  productId Int
+  quantity  Int
+  isDeleted Boolean @default(false)
+}
+
+model Payment {
+  id        Int           @id @default(autoincrement())
+  order     Order         @relation(fields: [orderId], references: [id])
+  orderId   Int
+  amount    Float
+  method    PaymentMethod
+  status    PaymentStatus @default(PENDING)
+  createdAt DateTime      @default(now())
+  isDeleted Boolean       @default(false)
+}
+
+model Category {
+  id               Int              @id @default(autoincrement())
+  name             String           @unique
+  products         Product[]
+  couponCategories CouponCategory[]
+  isDeleted        Boolean          @default(false)
+}
+
+model Variant {
+  id         Int     @id @default(autoincrement())
+  product    Product @relation(fields: [productId], references: [id])
+  productId  Int
+  sku        String  @unique
+  attributes Json // e.g. { "color": "Black", "size": "42" }
+  stock      Int
+  price      Float
+  isDeleted  Boolean @default(false)
+}
+
+model Address {
+  id        Int     @id @default(autoincrement())
+  user      User    @relation(fields: [userId], references: [id])
+  userId    Int
+  fullName  String
+  phone     String
+  street    String
+  city      String
+  state     String
+  country   String
+  postal    String
+  isDefault Boolean @default(false)
+  isDeleted Boolean @default(false)
+}
+
+model Coupon {
+  id           Int          @id @default(autoincrement())
+  code         String       @unique
+  discountType DiscountType
+  value        Float // % or fixed amount
+  expiresAt    DateTime
+  isActive     Boolean      @default(true)
+
+  // New fields
+  minOrders    Int  @default(0)
+  usageLimit   Int?
+  perUserLimit Int?
+  productLimit Int?
+
+  // Relations
+  redemptions CouponRedemption[]
+  categories  CouponCategory[]
+  products    CouponProduct[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  isDeleted Boolean  @default(false)
+}
+
+model CouponCategory {
+  id         Int      @id @default(autoincrement())
+  coupon     Coupon   @relation(fields: [couponId], references: [id])
+  couponId   Int
+  category   Category @relation(fields: [categoryId], references: [id])
+  categoryId Int
+}
+
+model CouponProduct {
+  id        Int     @id @default(autoincrement())
+  coupon    Coupon  @relation(fields: [couponId], references: [id])
+  couponId  Int
+  product   Product @relation(fields: [productId], references: [id])
+  productId Int
+}
+
+model CouponRedemption {
+  id         Int      @id @default(autoincrement())
+  coupon     Coupon   @relation(fields: [couponId], references: [id])
+  couponId   Int
+  user       User     @relation(fields: [userId], references: [id])
+  userId     Int
+  order      Order    @relation(fields: [orderId], references: [id])
+  orderId    Int
+  redeemedAt DateTime @default(now())
 }
 
 enum Role {
@@ -81,4 +234,24 @@ enum OrderStatus {
   PROCESSING
   SHIPPED
   DELIVERED
+}
+
+enum PaymentMethod {
+  CARD
+  PAYSTACK
+  FLUTTERWAVE
+  BANK_TRANSFER
+  USSD
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED
 }
