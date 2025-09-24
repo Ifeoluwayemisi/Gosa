@@ -3,6 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import prisma from "./config/prisma.js";
 import authRoutes from "./routes/authRoute.js";
+import  userRoutes from "./routes/UserRoute.js"
 
 dotenv.config();
 const app = express();
@@ -10,6 +11,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use("/api/auth", authRoutes);
+app.use("/api/auth/", userRoutes)
 
 app.get("/", (req, res) => res.send("SaaS backend running"));
 

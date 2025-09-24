@@ -17,7 +17,12 @@ model User {
   id                Int                @id @default(autoincrement())
   name              String
   email             String             @unique
-  password          String
+  password          String?
+  googleId          String?            @unique
+  avatar            String?
+  profileComplete   Boolean            @default(false)
+  phone             String?
+  provider          String             @default("local")
   role              Role               @default(CUSTOMER)
   orders            Order[]
   activityLogs      ActivityLog[]
