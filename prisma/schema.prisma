@@ -39,7 +39,7 @@ model Product {
   id             Int             @id @default(autoincrement())
   name           String
   categoryId     Int
-  category       Category        @relation(fields: [categoryId], references: [id])
+  category       Category        @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   price          Float
   description    String
   images         ProductImage[]
@@ -91,6 +91,21 @@ model Order {
   couponRedemptions CouponRedemption[]
 }
 
+model Variant {
+  id         Int         @id @default(autoincrement())
+  product    Product     @relation(fields: [productId], references: [id])
+  productId  Int
+  sku        String
+  attributes Json // e.g. { "color": "Black", "size": "42" }
+  stock      Int
+  price      Float
+  isDeleted  Boolean     @default(false)
+  orders     OrderItem[]
+  CartItem   CartItem[]
+
+  @@unique([productId, sku])
+}
+
 model OrderItem {
   id        Int     @id @default(autoincrement())
   order     Order   @relation(fields: [orderId], references: [id])
@@ -100,6 +115,8 @@ model OrderItem {
   quantity  Int
   price     Float
   isDeleted Boolean @default(false)
+  variantId Int
+  variant   Variant @relation(fields: [variantId], references: [id])
 }
 
 model Customization {
@@ -129,7 +146,13 @@ model CartItem {
   cartId    Int
   product   Product @relation(fields: [productId], references: [id])
   productId Int
+  variant   Variant @relation(fields: [variantId], references: [id])
+  variantId Int
   quantity  Int
+  subtotal  Float
+  discount  Float   @default(0)
+  shipping  Float   @default(0)
+  tax       Float   @default(0)
   isDeleted Boolean @default(false)
 }
 
@@ -150,17 +173,6 @@ model Category {
   products         Product[]
   couponCategories CouponCategory[]
   isDeleted        Boolean          @default(false)
-}
-
-model Variant {
-  id         Int     @id @default(autoincrement())
-  product    Product @relation(fields: [productId], references: [id])
-  productId  Int
-  sku        String  @unique
-  attributes Json // e.g. { "color": "Black", "size": "42" }
-  stock      Int
-  price      Float
-  isDeleted  Boolean @default(false)
 }
 
 model Address {

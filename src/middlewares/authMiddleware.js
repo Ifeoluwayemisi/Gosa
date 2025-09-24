@@ -1,4 +1,4 @@
-import { Role } from "@prisma/client";
+import prisma from "../config/prisma.js";
 import jwt from "jsonwebtoken";
 
 export const protect = async (req, res, next) => {
