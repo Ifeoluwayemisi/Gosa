@@ -3,17 +3,13 @@ import bcrypt from "bcrypt";
 import { OAuth2Client } from "google-auth-library";
 import { generateToken } from "../utils/generateToken.js";
 import jwt from "jsonwebtoken";
+import { sendTemplateEmail } from "../utils/sendTemplate.js";
+import { notifyAdmin } from "../utils/notifyAdmin.js";
 
-const client = new OAuth2Client(
-  process.env.GOOGLE_CLIENT_ID,
-  process.env.GOOGLE_CLIENT_SECRET,
-  process.env.GOOGLE_REDIRECT_URL
-);
-
-//Register
 export const register = async (req, res) => {
   try {
     const { name, email, password } = req.body;
+
     const userExists = await prisma.user.findUnique({ where: { email } });
     if (userExists) return res.status(400).json({ message: "User exists" });
 
@@ -22,11 +18,28 @@ export const register = async (req, res) => {
       data: { name, email, password: hashedPassword, role: "CUSTOMER" },
     });
 
+    // Send welcome email (HTML template)
+    await sendTemplateEmail({
+      to: user.email,
+      subject: "Welcome to GOSA! 🎉",
+      templateName: "welcome.html",
+      variables: {
+        name: user.name,
+        loginUrl: "https://gosa.com/login", // update to your frontend
+      },
+    });
+
+    // Notify admin
+    await notifyAdmin({
+      subject: "New User Registered",
+      text: `User ${user.name} (${user.email}) has just registered.`,
+    });
+
     const token = generateToken(user);
     res.json({
       message: "Registration successful. Welcome onboard",
       token,
-      user,
+      user: { ...user, password: undefined },
     });
   } catch (error) {
     console.error(error);
@@ -40,24 +53,17 @@ export const login = async (req, res) => {
     const { email, password } = req.body;
 
     const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      return res.status(401).json({ error: "Invalid Login Details" });
-    }
+    if (!user) return res.status(401).json({ error: "Invalid login details" });
 
     const isMatch = await bcrypt.compare(password, user.password || "");
-    if (!isMatch) {
-      return res.status(401).json({ error: "Invalid credentials" });
-    }
+    if (!isMatch) return res.status(401).json({ error: "Invalid credentials" });
 
     const token = generateToken(user);
-
-    // to remove sensitive fields
-    const { password: _, ...safeUser } = user;
 
     res.json({
       message: `Welcome back ${user.name}`,
       token,
-      user: safeUser,
+      user: { ...user, password: undefined },
     });
   } catch (err) {
     console.error(err);
@@ -107,7 +113,6 @@ export const googleLogin = async (req, res) => {
 //       });
 //     }
 
-
 //     // to generate app token
 //     const appToken = jwt.sign(
 //       { id: user.id, email: user.email },
@@ -135,20 +140,24 @@ const googleClient = new OAuth2Client(
   process.env.GOOGLE_REDIRECT_URL
 );
 
+// Step 1: Redirect user to Google login
+export const google = (req, res) => {
+  const url = googleClient.generateAuthUrl({
+    access_type: "offline",
+    scope: ["profile", "email"],
+  });
+  res.redirect(url);
+};
+
+// Step 2: Handle callback from Google
 export const googleCallback = async (req, res) => {
   try {
     const { code } = req.query;
-    if (!code) {
-      return res
-        .status(400)
-        .json({ status: "error", message: "Missing Google code" });
-    }
+    if (!code) return res.status(400).json({ message: "Missing Google code" });
 
-    // Exchange code for tokens
     const { tokens } = await googleClient.getToken(code);
     googleClient.setCredentials(tokens);
 
-    // Verify ID token
     const ticket = await googleClient.verifyIdToken({
       idToken: tokens.id_token,
       audience: process.env.GOOGLE_CLIENT_ID,
@@ -157,30 +166,38 @@ export const googleCallback = async (req, res) => {
     const payload = ticket.getPayload();
     const { sub: googleId, email, name, picture } = payload;
 
-    // Check if user exists
     let user = await prisma.user.findUnique({ where: { email } });
 
     if (!user) {
       user = await prisma.user.create({
-        data: {
-          email,
-          name,
-          googleId,
-          avatar: picture,
-          role: "CUSTOMER",
+        data: { email, name, googleId, avatar: picture, role: "CUSTOMER" },
+      });
+
+      // Send welcome email for new Google user
+      await sendTemplateEmail({
+        to: user.email,
+        subject: "Welcome to GOSA! 🎉",
+        templateName: "welcome.html",
+        variables: {
+          name: user.name,
+          loginUrl: "https://gosa.com/login",
         },
+      });
+
+      // Notify admin about new Google user
+      await notifyAdmin({
+        subject: "New Google User Registered",
+        text: `User ${user.name} (${user.email}) registered via Google.`,
       });
     }
 
-    // Check profile completeness
-    const isProfileComplete = user.name && user.phone && user.address;
-
-    // Generate JWT
     const token = jwt.sign(
       { id: user.id, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
+
+    const isProfileComplete = user.name && user.phone && user.address;
 
     return res.status(200).json({
       status: "success",

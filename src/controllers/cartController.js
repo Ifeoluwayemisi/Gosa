@@ -9,9 +9,7 @@ export const getCart = async (req, res) => {
           where: { isDeleted: false },
           include: {
             variant: {
-              include: {
-                product: true,
-              },
+              include: { product: true },
             },
           },
         },
@@ -19,12 +17,33 @@ export const getCart = async (req, res) => {
     });
 
     if (!cart)
-      return res.json({
-        message: "Cart is empty, add at least an item",
-        items: [],
-      });
+      return res.json({ message: "Cart is empty", items: [], totals: {} });
 
-    res.json(cart);
+    // calculate totals
+    let subtotal = 0;
+    let discount = 0;
+    let shipping = 0;
+    let tax = 0;
+
+    cart.items.forEach((item) => {
+      subtotal += item.quantity * item.variant.price;
+      discount += item.discount || 0;
+      shipping += item.shipping || 0;
+      tax += item.tax || 0;
+    });
+
+    const grandTotal = subtotal + shipping + tax - discount;
+
+    res.json({
+      ...cart,
+      totals: {
+        subtotal,
+        discount,
+        shipping,
+        tax,
+        grandTotal,
+      },
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to fetch cart" });
