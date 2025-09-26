@@ -1,8 +1,7 @@
 import prisma from "../config/prisma.js";
 import paystack from "../config/paystack.js";
-import sendEmail from "../utils/email.js";
 import { nanoid } from "nanoid";
-import { notifyUser } from "../utils/emailNotifier.js";
+import { sendTemplateEmail } from "../utils/sendTemplateEmail.js"; // HTML template sender
 
 export const paymentCallback = async (req, res) => {
   try {
@@ -49,14 +48,18 @@ export const paymentCallback = async (req, res) => {
           },
         });
 
-        // Send coupon via email
+        // Send coupon via HTML template email
         if (user.email) {
-          await sendEmail({
+          await sendTemplateEmail({
             to: user.email,
             subject: "🎉 Congrats! Your Exclusive Coupon is Here",
-            text: `Hello ${
-              user.name
-            },\n\nYou’ve earned a coupon for 10% off your next purchase! Use code: ${code}\nExpires: ${coupon.expiresAt.toDateString()}\n\nHappy shopping!`,
+            templateName: "coupon.html",
+            variables: {
+              name: user.name,
+              couponCode: coupon.code,
+              discount: coupon.value,
+              expiry: coupon.expiresAt.toDateString(),
+            },
           });
         }
       }
