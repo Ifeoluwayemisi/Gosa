@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE `coupon` ADD COLUMN `stackable` BOOLEAN NOT NULL DEFAULT false,
+    ADD COLUMN `type` ENUM('ADMIN', 'AUTO_REWARD') NOT NULL DEFAULT 'ADMIN';

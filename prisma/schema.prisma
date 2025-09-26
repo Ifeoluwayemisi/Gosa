@@ -199,10 +199,14 @@ model Coupon {
   isActive     Boolean      @default(true)
 
   // New fields
-  minOrders    Int  @default(0)
-  usageLimit   Int?
-  perUserLimit Int?
-  productLimit Int?
+  minOrders    Int  @default(0) // minimum orders before user qualifies
+  usageLimit   Int? // global limit for coupon
+  perUserLimit Int? // per-user redemption cap
+  productLimit Int? // limit on number of products discounted
+
+  // Differentiator
+  type      CouponType @default(ADMIN) // ADMIN | AUTO_REWARD
+  stackable Boolean    @default(false) // can it combine with another?
 
   // Relations
   redemptions CouponRedemption[]
@@ -271,4 +275,9 @@ enum PaymentStatus {
 enum DiscountType {
   PERCENTAGE
   FIXED
+}
+
+enum CouponType {
+  ADMIN // manually created by admin
+  AUTO_REWARD // system-generated after purchase/loyalty threshold
 }

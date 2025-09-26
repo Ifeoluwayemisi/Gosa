@@ -1,7 +1,7 @@
 import prisma from "../config/prisma.js";
 import paystack from "../config/paystack.js";
-import { nanoid } from "nanoid";
-import { sendTemplateEmail } from "../utils/sendTemplateEmail.js"; // HTML template sender
+import { sendTemplateEmail } from "../utils/sendTemplateEmail.js";
+import { generateCoupon } from "../services/couponService.js";
 
 export const paymentCallback = async (req, res) => {
   try {
@@ -26,7 +26,7 @@ export const paymentCallback = async (req, res) => {
 
       const user = order.user;
 
-      // Auto-generate coupon if eligible
+      // Check how many orders user has completed
       const userOrders = await prisma.order.count({
         where: { userId: user.id, status: "DELIVERED" },
       });
@@ -35,20 +35,18 @@ export const paymentCallback = async (req, res) => {
       let coupon = null;
 
       if (userOrders >= minOrdersForCoupon) {
-        const code = `AUTO-${nanoid(6).toUpperCase()}`;
-        coupon = await prisma.coupon.create({
-          data: {
-            code,
-            discountType: "PERCENTAGE",
-            value: 10, // 10% discount
-            minOrders: minOrdersForCoupon,
-            usageLimit: 3,
-            perUserLimit: 1,
-            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
-          },
+        // Use centralized service to generate coupon
+        coupon = await generateCoupon({
+          prefix: "AUTO", // Or "GOSA" if you want branding
+          discountType: "PERCENTAGE",
+          value: 10, // 10% off
+          usageLimit: 3,
+          perUserLimit: 1,
+          expiresInDays: 30,
+          minOrders: minOrdersForCoupon,
         });
 
-        // Send coupon via HTML template email
+        // Send coupon via email
         if (user.email) {
           await sendTemplateEmail({
             to: user.email,
