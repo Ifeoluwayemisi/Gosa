@@ -5,13 +5,18 @@ import Image from "next/image";
 import { useState, useEffect } from "react";
 import HeroCarousel from "../components/heroCarousel";
 import { fetcher } from "../../utils/api";
+import { useCart } from "../context/cartContext";
 
-export default function HomeClient({ initialCategories = [], initialProducts = [] }) {
+export default function HomeClient({
+  initialCategories = [],
+  initialProducts = [],
+}) {
   const [categories, setCategories] = useState(initialCategories);
   const [products, setProducts] = useState(initialProducts);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [cart, setCart] = useState([]);
+
+  const { addToCart } = useCart(); // ✅ use context hook
 
   useEffect(() => {
     const loadData = async () => {
@@ -31,11 +36,6 @@ export default function HomeClient({ initialCategories = [], initialProducts = [
 
     loadData();
   }, []);
-
-  const addToCart = (product) => {
-    setCart((prev) => [...prev, product]);
-    alert(`${product.name} added to cart!`);
-  };
 
   const getImageSrc = (img) => {
     if (!img) return "/images/Bags.jpg"; // fallback
@@ -67,7 +67,9 @@ export default function HomeClient({ initialCategories = [], initialProducts = [
 
       {/* Categories */}
       <section className="max-w-6xl mx-auto px-6">
-        <h2 className="text-3xl font-bold mb-8 text-center">Shop by Category</h2>
+        <h2 className="text-3xl font-bold mb-8 text-center">
+          Shop by Category
+        </h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
           {categories.map((cat) => (
             <Link key={cat.id} href={`/shop?category=${cat.id}`}>
@@ -90,7 +92,9 @@ export default function HomeClient({ initialCategories = [], initialProducts = [
 
       {/* Products */}
       <section className="max-w-6xl mx-auto px-6">
-        <h2 className="text-3xl font-bold mb-8 text-center">Best Selling Products</h2>
+        <h2 className="text-3xl font-bold mb-8 text-center">
+          Best Selling Products
+        </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
           {products.map((p) => (
             <div
@@ -108,7 +112,7 @@ export default function HomeClient({ initialCategories = [], initialProducts = [
                 <h3 className="text-lg font-semibold">{p.name}</h3>
                 <p className="text-purple-600 font-bold">${p.price}</p>
                 <button
-                  onClick={() => addToCart(p)}
+                  onClick={() => addToCart(p, 1)} // ✅ use CartContext
                   className="mt-2 w-full bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 transition"
                 >
                   Add to Cart

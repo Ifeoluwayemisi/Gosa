@@ -71,69 +71,7 @@ export const login = async (req, res) => {
   }
 };
 
-
-// GOOGLE AUTH
-export const googleLogin = async (req, res) => {
-  const url = client.generateAuthUrl({
-    access_type: "offline",
-    scope: ["profile", "email"],
-  });
-  res.redirect(url);
-};
-
-// callback
-// export const googleCallback = async (req, res) => {
-//   try {
-//     const { code } = req.query;
-
-//     const { tokens } = await client.getToken(code);
-//     client.setCredentials(tokens);
-
-//     // verify id token
-//     const ticket = await client.verifyIdToken({
-//       idToken: tokens.id_token,
-//       audience: process.env.GOOGLE_CLIENT_ID,
-//     });
-
-//     const payload = ticket.getPayLoad();
-//     const { sub: googleId, email, name, picture } = payload;
-
-//     // check if user exists
-//     let user = await prisma.user.findUnique({ where: { email } });
-
-//     if (!user) {
-//       user = await prisma.user.create({
-//         data: {
-//           email,
-//           name,
-//           googleId,
-//           avatar: picture,
-//           profileComplete: false,
-//         },
-//       });
-//     }
-
-//     // to generate app token
-//     const appToken = jwt.sign(
-//       { id: user.id, email: user.email },
-//       process.env.JWT_SECRET,
-//       { expiresIn: "7d" }
-//     );
-
-//     if (!user.profileComplete) {
-//       return res.redirect(
-//         `http://localhost:3000/complete-profile?token=${token}`
-//       );
-//     }
-
-//     // redirect to frontend with the token
-//     res.redirect(`http://localhost:3000/dashboard?token=${appToken}`);
-//   } catch (err) {
-//     console.error("Google auth error:", err);
-//     res.status(500).json({ err: "Authentication failed" });
-//   }
-// };
-
+// google auth
 const googleClient = new OAuth2Client(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
@@ -141,7 +79,7 @@ const googleClient = new OAuth2Client(
 );
 
 // Step 1: Redirect user to Google login
-export const google = (req, res) => {
+export const googleLogin = (req, res) => {
   const url = googleClient.generateAuthUrl({
     access_type: "offline",
     scope: ["profile", "email"],
@@ -173,18 +111,15 @@ export const googleCallback = async (req, res) => {
         data: { email, name, googleId, avatar: picture, role: "CUSTOMER" },
       });
 
-      // Send welcome email for new Google user
+      // Send welcome email
       await sendTemplateEmail({
         to: user.email,
         subject: "Welcome to GOSA! 🎉",
         templateName: "welcome.html",
-        variables: {
-          name: user.name,
-          loginUrl: "https://gosa.com/login",
-        },
+        variables: { name: user.name, loginUrl: "https://gosa.com/login" },
       });
 
-      // Notify admin about new Google user
+      // Notify admin
       await notifyAdmin({
         subject: "New Google User Registered",
         text: `User ${user.name} (${user.email}) registered via Google.`,
@@ -199,13 +134,13 @@ export const googleCallback = async (req, res) => {
 
     const isProfileComplete = user.name && user.phone && user.address;
 
-    return res.status(200).json({
-      status: "success",
-      message: "Google authentication successful",
-      token,
-      user,
-      needsProfile: !isProfileComplete,
-    });
+    if (!isProfileComplete) {
+      return res.redirect(
+        `http://localhost:3000/complete-profile?token=${token}`
+      );
+    }
+
+    return res.redirect(`http://localhost:3000/dashboard?token=${token}`);
   } catch (error) {
     console.error("Google auth error:", error.message);
     return res.status(500).json({
