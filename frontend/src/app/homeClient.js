@@ -16,7 +16,7 @@ export default function HomeClient({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const { addToCart } = useCart(); // ✅ use context hook
+  const { addToCart } = useCart();
 
   useEffect(() => {
     const loadData = async () => {
@@ -110,10 +110,10 @@ export default function HomeClient({
               />
               <div className="p-4">
                 <h3 className="text-lg font-semibold">{p.name}</h3>
-                <p className="text-purple-600 font-bold">${p.price}</p>
+                <p className="text-purple-600 font-bold">₦{p.price}</p>
                 <button
-                  onClick={() => addToCart(p, 1)} // ✅ use CartContext
-                  className="mt-2 w-full bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 transition"
+                  onClick={() => addToCart(p, 1)}
+                  className="mt-2 w-full bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 transition cursor-pointer"
                 >
                   Add to Cart
                 </button>

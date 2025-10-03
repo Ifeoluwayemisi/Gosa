@@ -11,7 +11,7 @@ import cartRoutes from "./routes/cartRoutes.js";
 import checkRoutes from "./routes/checkRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
 import orderRoutes from "./routes/admin/orderRoutes.js";
-
+import paymentRoutes from "./routes/paymentRoute.js";
 dotenv.config();
 const app = express();
 
@@ -26,6 +26,8 @@ app.use("/api/cart", cartRoutes);
 app.use("/api/checkout", checkRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/order", orderRoutes);
+app.use("/api/payment", paymentRoutes);
+// app.use("/api/", )
 
 app.get("/", (req, res) => res.send("SaaS backend running"));
 

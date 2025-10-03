@@ -6,7 +6,7 @@ export default function CheckoutPage() {
   const { cartItems, totals, coupon } = useCart();
   const [addresses, setAddresses] = useState([]);
   const [selectedAddress, setSelectedAddress] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState("CARD");
+  const [paymentMethod, setPaymentMethod] = useState("Bank");
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -22,7 +22,7 @@ export default function CheckoutPage() {
   }, []);
 
   const handlePayment = async () => {
-    if (!selectedAddress) return alert("Select a shipping address");
+   // if (!selectedAddress) return alert("Select a shipping address");
 
     try {
       const res = await fetch("/api/payment/initiate", {
@@ -41,14 +41,20 @@ export default function CheckoutPage() {
 
       const data = await res.json();
       if (data.success) {
-        // Redirect to payment gateway URL
-        window.location.href = data.paymentUrl;
+        if (paymentMethod === "BANK_TRANSFER") {
+          setMessage(
+            `Bank transfer initiated. Please follow instructions: ${data.details}`
+          );
+        } else {
+          // redirect user to Paystack / Flutterwave / card checkout
+          window.location.href = data.paymentUrl;
+        }
       } else {
-        setMessage(data.error);
+        setMessage(data.error || "Payment failed, try again.");
       }
     } catch (err) {
       console.error(err);
-      setMessage("Payment initiation failed");
+      setMessage("Payment failed, try again.");
     }
   };
 
@@ -117,6 +123,19 @@ export default function CheckoutPage() {
               <option value="BANK_TRANSFER">Bank Transfer</option>
             </select>
           </div>
+
+          {/* Bank Transfer Instructions */}
+          {paymentMethod === "BANK_TRANSFER" && (
+            <div className="mt-4 p-4 border rounded bg-gray-50">
+              <p>Please make a transfer to the following account:</p>
+              <p className="font-semibold">Bank: Zenith Bank</p>
+              <p>Account Number: 1234567890</p>
+              <p>Account Name: Handmade Co.</p>
+              <p>
+                After transferring, upload your proof of payment or notify us.
+              </p>
+            </div>
+          )}
 
           {message && <p className="text-red-600 mt-2">{message}</p>}
 
