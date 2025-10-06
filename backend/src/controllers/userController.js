@@ -4,9 +4,7 @@ import fs from "fs";
 import path from "path";
 
 const uploadDir = path.join(process.cwd(), "uploads");
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
 // ---------------- Multer setup ----------------
 const storage = multer.diskStorage({
@@ -19,39 +17,52 @@ const storage = multer.diskStorage({
 
 export const uploadProfileImage = multer({ storage }).single("profileImage");
 
-// ---------------- Complete or Update Profile ----------------
+// ---------------- Complete Profile (1-time only) ----------------
 export const completeProfile = async (req, res) => {
   try {
     const userId = req.user.id;
-    if (!req.body) req.body = {};
-
     const { name, phone, addresses } = req.body;
 
-    if (!name || !phone || !addresses)
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { addresses: true },
+    });
+
+    if (!user) return res.status(404).json({ error: "User not found." });
+
+    // 🚫 Prevent completing profile twice
+    if (user.profileComplete) {
+      return res.status(403).json({
+        error:
+          "Profile already completed. Please log in and use the update route instead.",
+      });
+    }
+
+    // ✅ Validate required fields
+    if (!name || !phone || !addresses) {
       return res
         .status(400)
         .json({
           error: "All fields (name, phone, addresses, and image) are required.",
         });
+    }
 
-    if (!req.file)
+    if (!req.file) {
       return res.status(400).json({ error: "Please upload a profile image." });
+    }
 
-    // Parse address object
+    // ✅ Parse address
     let addressObj;
     try {
-      addressObj = typeof addresses === "string" ? JSON.parse(addresses) : addresses;
+      addressObj =
+        typeof addresses === "string" ? JSON.parse(addresses) : addresses;
     } catch {
       return res.status(400).json({ error: "Invalid address format." });
     }
 
-    // File upload
     const profileImage = `/uploads/${req.file.filename}`;
 
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) return res.status(404).json({ error: "User not found." });
-
-    // Create address for user
+    // ✅ Create the address + mark profile complete
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: {
@@ -60,24 +71,19 @@ export const completeProfile = async (req, res) => {
         profileImage,
         profileComplete: true,
         addresses: {
-          create: {
-            ...addressObj,
-            
-          },
+          create: { ...addressObj },
         },
       },
       include: { addresses: true },
     });
 
     res.json({
-      message: user.profileComplete
-        ? "Profile updated successfully!"
-        : "Profile completed successfully!",
+      message: "Profile completed successfully!",
       user: updatedUser,
     });
   } catch (err) {
     console.error("Complete profile error:", err);
-    res.status(500).json({ error: "Failed to complete/update profile." });
+    res.status(500).json({ error: "Failed to complete profile." });
   }
 };
 
