@@ -10,15 +10,16 @@ import variantRoutes from "./routes/variantRoutes.js";
 import cartRoutes from "./routes/cartRoutes.js";
 import checkRoutes from "./routes/checkRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
-import orderRoutes from "./routes/admin/orderRoutes.js";
+import orderAdminRoutes from "./routes/admin/orderRoutes.js";
 import paymentRoutes from "./routes/paymentRoute.js";
+import orderRoutes from "./routes/orderRoutes.js";
+
 dotenv.config();
 const app = express();
 
 app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true })); // Move this here
-
+app.use(express.urlencoded({ extended: true }));
 app.use("/api/auth", authRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/products", productRoutes);
@@ -26,9 +27,10 @@ app.use("/api/variants", variantRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/checkout", checkRoutes);
 app.use("/api/dashboard", dashboardRoutes);
-app.use("/api/order", orderRoutes);
+app.use("/api/admin", orderAdminRoutes);
 app.use("/api/payment", paymentRoutes);
 app.use("/api/user/", userRoutes);
+app.use("/api/orders", orderRoutes);
 
 // app.use("/api/", )
 
