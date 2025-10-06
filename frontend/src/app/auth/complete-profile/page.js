@@ -8,6 +8,7 @@ import { fetcher } from "../../../../utils/api";
 
 export default function CompleteProfilePage() {
   const { user, token, login } = useAuth();
+  const [file, setFile] = useState(null);
   const router = useRouter();
   const {
     register,
@@ -21,7 +22,7 @@ export default function CompleteProfilePage() {
   useEffect(() => {
     if (user) {
       // prefill fields with existing user data if any
-      const [street = "", city = "", state = "", postal = ""] = (
+      const [street = "", city = "", state = "", country="", postal = ""] = (
         user.address || ""
       ).split(", ");
       reset({
@@ -30,6 +31,7 @@ export default function CompleteProfilePage() {
         street,
         city,
         state,
+        country,
         postal,
       });
     }
@@ -40,30 +42,43 @@ export default function CompleteProfilePage() {
       setLoading(true);
       setMessage("");
 
-      // combine address fields into a single string
-      const payload = {
-        name: data.name,
-        phone: data.phone,
-        addresses: `${data.street}, ${data.city}, ${data.state}, ${data.postal}`,
-      };
+      const formData = new FormData();
+      formData.append("name", data.name);
+      formData.append("phone", data.phone);
 
-      const updatedUser = await fetcher(
-        "/user/complete-profile",
-        {
-          method: "POST",
-          body: JSON.stringify(payload),
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        }
+      // send addresses as JSON string
+      formData.append(
+        "addresses",
+        JSON.stringify({
+          street: data.street,
+          city: data.city,
+          state: data.state,
+          country: data.country,
+          postal: data.postal,
+        })
       );
 
-      login(token, updatedUser); // update context
-      router.push("/"); // redirect to homepage
+      if (file) formData.append("profileImage", file);
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/user/complete-profile`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) {
+        throw new Error(result.error || "Failed to complete profile");
+      }
+
+      login(token, result.user);
+      router.push("/");
     } catch (err) {
       console.error("Complete profile error:", err);
-      setMessage(err.message || "Failed to update profile");
+      setMessage(err.message);
     } finally {
       setLoading(false);
     }
@@ -87,7 +102,6 @@ export default function CompleteProfilePage() {
               <p className="text-red-500">{errors.name.message}</p>
             )}
           </div>
-
           <div>
             <label className="block text-gray-700">Phone</label>
             <input
@@ -101,6 +115,17 @@ export default function CompleteProfilePage() {
           </div>
 
           <div>
+            <label className="block text-gray-700">Profile Image</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => setFile(e.target.files[0])}
+              className="w-full mt-1"
+              required
+            />
+          </div>
+
+          <div>
             <label className="block text-gray-700">Street</label>
             <input
               type="text"
@@ -111,7 +136,6 @@ export default function CompleteProfilePage() {
               <p className="text-red-500">{errors.street.message}</p>
             )}
           </div>
-
           <div>
             <label className="block text-gray-700">City</label>
             <input
@@ -123,7 +147,6 @@ export default function CompleteProfilePage() {
               <p className="text-red-500">{errors.city.message}</p>
             )}
           </div>
-
           <div>
             <label className="block text-gray-700">State</label>
             <input
@@ -135,7 +158,6 @@ export default function CompleteProfilePage() {
               <p className="text-red-500">{errors.state.message}</p>
             )}
           </div>
-
           <div>
             <label className="block text-gray-700">Postal Code</label>
             <input
@@ -147,7 +169,17 @@ export default function CompleteProfilePage() {
               <p className="text-red-500">{errors.postal.message}</p>
             )}
           </div>
-
+          <div>
+            <label className="block text-gray-700">Country</label>
+            <input
+              type="text"
+              {...register("country", { required: "Country is required" })}
+              className="w-full p-2 border rounded mt-1"
+            />
+            {errors.country && (
+              <p className="text-red-500">{errors.country.message}</p>
+            )}
+          </div>
           <button
             type="submit"
             disabled={loading}

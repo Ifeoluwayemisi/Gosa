@@ -19,9 +19,9 @@ model User {
   email             String             @unique
   password          String?
   googleId          String?            @unique
-  avatar            String?
+  profileImage            String?
   profileComplete   Boolean            @default(false)
-  phone             String?
+  phone             String?            
   provider          String             @default("local")
   role              Role               @default(CUSTOMER)
   orders            Order[]
@@ -179,8 +179,8 @@ model Address {
   id        Int     @id @default(autoincrement())
   user      User    @relation(fields: [userId], references: [id])
   userId    Int
-  fullName  String
-  phone     String
+  fullName  String?
+  phone     String?
   street    String
   city      String
   state     String
