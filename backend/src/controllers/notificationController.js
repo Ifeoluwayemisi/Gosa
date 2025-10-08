@@ -1,31 +1,30 @@
 import prisma from "../config/prisma.js";
 
-// Get user notifications with pagination
+// Get paginated user notifications
 export const getNotifications = async (req, res) => {
   try {
-    const userId = req.user.id;
-
-    // Get page and limit from query, default page=1, limit=10
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    // Total notifications count
-    const totalCount = await prisma.notification.count({
-      where: { userId },
-    });
+    const [notifications, total] = await Promise.all([
+      prisma.notification.findMany({
+        where: { userId: req.user.id },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+      }),
+      prisma.notification.count({
+        where: { userId: req.user.id },
+      }),
+    ]);
 
-    const notifications = await prisma.notification.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
-      skip,
-      take: limit,
-    });
+    const totalPages = Math.ceil(total / limit);
 
     res.json({
       success: true,
       notifications,
-      totalPages: Math.ceil(totalCount / limit),
+      totalPages,
       currentPage: page,
     });
   } catch (err) {
@@ -33,7 +32,7 @@ export const getNotifications = async (req, res) => {
   }
 };
 
-// Mark notification as read
+// Mark a single notification as read
 export const markAsRead = async (req, res) => {
   try {
     const { id } = req.params;
@@ -47,7 +46,7 @@ export const markAsRead = async (req, res) => {
   }
 };
 
-// Mark all notifications as read
+// Mark all notifications as read for the logged-in user
 export const markAllAsRead = async (req, res) => {
   try {
     await prisma.notification.updateMany({

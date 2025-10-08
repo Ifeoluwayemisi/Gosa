@@ -4,6 +4,18 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useAuth } from "../../../context/AuthContext";
 import toast from "react-hot-toast";
 
+// Simple throttle function
+const throttle = (fn, wait) => {
+  let lastTime = 0;
+  return (...args) => {
+    const now = Date.now();
+    if (now - lastTime >= wait) {
+      fn(...args);
+      lastTime = now;
+    }
+  };
+};
+
 export default function NotificationsPage() {
   const { token } = useAuth();
   const [notifications, setNotifications] = useState([]);
@@ -16,25 +28,20 @@ export default function NotificationsPage() {
   const fetchNotifications = useCallback(
     async (pageNumber = 1) => {
       try {
-        setLoading(true);
+        if (pageNumber === 1) setLoading(true);
         const res = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/notifications?page=${pageNumber}&limit=10`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
+          { headers: { Authorization: `Bearer ${token}` } }
         );
         const data = await res.json();
         if (data.success) {
           setTotalPages(data.totalPages);
           setNotifications((prev) => {
-            // Avoid duplicates when loading more
             const newItems = data.notifications.filter(
               (n) => !prev.some((p) => p.id === n.id)
             );
-            // Show toast for new notifications (only for page 1)
-            if (pageNumber === 1) {
+            if (pageNumber === 1)
               newItems.forEach((n) => toast(`New: ${n.title} 🎉`));
-            }
             return pageNumber === 1
               ? data.notifications
               : [...prev, ...newItems];
@@ -43,7 +50,7 @@ export default function NotificationsPage() {
       } catch (err) {
         console.error(err);
       } finally {
-        setLoading(false);
+        if (pageNumber === 1) setLoading(false);
       }
     },
     [token]
@@ -82,26 +89,29 @@ export default function NotificationsPage() {
     }
   };
 
-  // Infinite scroll handler
-  const handleScroll = useCallback(() => {
-    const container = containerRef.current;
-    if (
-      container &&
-      container.scrollTop + container.clientHeight >=
-        container.scrollHeight - 50 &&
-      page < totalPages &&
-      !loading
-    ) {
-      setPage((prev) => prev + 1);
-    }
-  }, [page, totalPages, loading]);
+  // Throttled infinite scroll
+  const handleScroll = useCallback(
+    throttle(() => {
+      const container = containerRef.current;
+      if (
+        container &&
+        container.scrollTop + container.clientHeight >=
+          container.scrollHeight - 50 &&
+        page < totalPages &&
+        !loading
+      ) {
+        setPage((prev) => prev + 1);
+      }
+    }, 300),
+    [page, totalPages, loading]
+  );
 
+  // Initial load + polling + scroll listener
   useEffect(() => {
     if (!token) return;
 
-    fetchNotifications(1); // initial load
+    fetchNotifications(1);
 
-    // Poll every 30 seconds for new notifications (page 1)
     pollingRef.current = setInterval(() => fetchNotifications(1), 30000);
 
     const container = containerRef.current;
@@ -113,7 +123,7 @@ export default function NotificationsPage() {
     };
   }, [token, fetchNotifications, handleScroll]);
 
-  // Load next page when `page` state changes
+  // Load next page when `page` changes
   useEffect(() => {
     if (page > 1) fetchNotifications(page);
   }, [page, fetchNotifications]);
