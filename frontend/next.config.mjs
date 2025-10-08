@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
-    domains: ["images.unsplash.com"], // whitelist Unsplash
+    domains: [ "localhost"], // whitelist Unsplash
   },
 };
 

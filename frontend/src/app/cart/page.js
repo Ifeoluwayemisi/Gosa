@@ -1,23 +1,34 @@
 "use client";
 import { useCart } from "../../context/cartContext";
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation"; // <-- import useRouter
+import { useRouter } from "next/navigation";
+import toast, { Toaster } from "react-hot-toast";
 
 export default function CartPage() {
-  const router = useRouter(); // <-- initialize router
+  const router = useRouter();
   const { cartItems, totals, updateQuantity, removeFromCart } = useCart();
   const [cartTotals, setCartTotals] = useState(totals);
   const [couponCode, setCouponCode] = useState("");
   const [message, setMessage] = useState("");
 
-  // Sync cartTotals when cartItems or totals change
   useEffect(() => {
     setCartTotals(totals);
   }, [totals, cartItems]);
 
+  const handleUpdateQuantity = (productId, newQty) => {
+    updateQuantity(productId, newQty);
+    toast.success("Quantity updated ✅");
+  };
+
+  const handleRemove = (productId) => {
+    removeFromCart(productId);
+    toast.success("Item removed from cart 🗑️");
+  };
+
   const applyCoupon = async () => {
     if (!couponCode) return setMessage("Please enter a coupon code");
 
+    const toastId = toast.loading("Applying coupon...");
     try {
       const res = await fetch("/api/coupon/apply", {
         method: "POST",
@@ -31,24 +42,31 @@ export default function CartPage() {
       const data = await res.json();
 
       if (data.success) {
-        setMessage(`Coupon applied! Discount: ₦${data.discount.toFixed(2)}`);
         setCartTotals({
           ...totals,
           discount: data.discount,
           grandTotal:
             totals.subtotal + totals.tax + totals.shipping - data.discount,
         });
+        setMessage(`Coupon applied! Discount: ₦${data.discount.toFixed(2)}`);
+        toast.success(
+          `Coupon applied! Discount: ₦${data.discount.toFixed(2)}`,
+          { id: toastId }
+        );
       } else {
         setMessage(data.error || "Invalid coupon code");
+        toast.error(data.error || "Invalid coupon code", { id: toastId });
       }
     } catch (err) {
       console.error(err);
       setMessage("Failed to apply coupon. Try again.");
+      toast.error("Failed to apply coupon 😢", { id: toastId });
     }
   };
 
   const goToCheckout = () => {
-    router.push("/checkout"); // <-- Navigate to checkout page
+    toast.success("Proceeding to checkout 🛒");
+    router.push("/checkout");
   };
 
   if (cartItems.length === 0) {
@@ -57,6 +75,9 @@ export default function CartPage() {
 
   return (
     <div className="max-w-5xl mx-auto p-6">
+      {/* Toast container */}
+      <Toaster position="top-right" />
+
       <h1 className="text-3xl font-bold mb-6">Your Cart</h1>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -75,7 +96,7 @@ export default function CartPage() {
                     className="px-2 bg-gray-300 rounded"
                     onClick={() =>
                       item.quantity > 1 &&
-                      updateQuantity(item.productId, item.quantity - 1)
+                      handleUpdateQuantity(item.productId, item.quantity - 1)
                     }
                   >
                     -
@@ -84,7 +105,7 @@ export default function CartPage() {
                   <button
                     className="px-2 bg-gray-300 rounded"
                     onClick={() =>
-                      updateQuantity(item.productId, item.quantity + 1)
+                      handleUpdateQuantity(item.productId, item.quantity + 1)
                     }
                   >
                     +
@@ -93,7 +114,7 @@ export default function CartPage() {
               </div>
               <button
                 className="text-red-600"
-                onClick={() => removeFromCart(item.productId)}
+                onClick={() => handleRemove(item.productId)}
               >
                 Remove
               </button>
@@ -131,7 +152,7 @@ export default function CartPage() {
           </div>
 
           <button
-            onClick={goToCheckout} // <-- Add this
+            onClick={goToCheckout}
             className="bg-blue-600 text-white w-full py-2 rounded mt-4"
           >
             Proceed to Checkout

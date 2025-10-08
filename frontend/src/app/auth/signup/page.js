@@ -3,6 +3,8 @@
 import { useForm } from "react-hook-form";
 import { useState, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import toast, { Toaster } from "react-hot-toast";
 
 export default function SignUpPage() {
   const {
@@ -13,19 +15,19 @@ export default function SignUpPage() {
     formState: { errors },
   } = useForm();
   const [loading, setLoading] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const loginRef = useRef(null);
+  const router = useRouter();
 
   const password = watch("password");
 
   const onSubmit = async (data) => {
+    setErrorMessage(""); // reset inline error
+    const toastId = toast.loading("Signing up... ⏳");
     try {
       setLoading(true);
-      setSuccessMessage("");
-      setErrorMessage("");
 
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/auth/register`,
@@ -53,43 +55,46 @@ export default function SignUpPage() {
               .
             </>
           );
+          toast.dismiss(toastId);
           return;
         }
         throw new Error(result.message || "Signup failed!");
       }
 
-      // Success: reset form and scroll to login link
+      // Success: show toast and redirect to login
       reset();
-      setSuccessMessage("Signup successful! Please login.");
+      toast.success("Signup successful! Please login ✅", { id: toastId });
       setTimeout(() => {
-        loginRef.current?.scrollIntoView({ behavior: "smooth" });
-      }, 100); // short delay for smooth scroll
+        router.push("/auth/login");
+      }, 1500); // short delay for toast to be visible
     } catch (err) {
       console.error(err);
       setErrorMessage(err.message || "Signup failed!");
+      toast.error("Signup failed 😢", { id: toastId });
     } finally {
       setLoading(false);
     }
   };
 
   const handleGoogleLogin = () => {
-    setLoading(true);
+    toast.loading("Redirecting to Google... ⏳");
     window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/auth/google`;
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+      {/* Toast container */}
+      <Toaster position="top-right" />
+
       <div className="bg-white p-8 rounded shadow w-full max-w-md">
         <h2 className="text-2xl font-bold mb-4 text-center">Sign Up</h2>
 
-        {successMessage && (
-          <p className="mb-4 text-center text-green-500">{successMessage}</p>
-        )}
         {errorMessage && (
           <p className="mb-4 text-center text-red-500">{errorMessage}</p>
         )}
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          {/* Name */}
           <div>
             <label className="block text-gray-700">Name</label>
             <input
@@ -102,6 +107,7 @@ export default function SignUpPage() {
             )}
           </div>
 
+          {/* Email */}
           <div>
             <label className="block text-gray-700">Email</label>
             <input
@@ -114,6 +120,7 @@ export default function SignUpPage() {
             )}
           </div>
 
+          {/* Password */}
           <div className="relative">
             <label className="block text-gray-700">Password</label>
             <input
@@ -144,6 +151,7 @@ export default function SignUpPage() {
             )}
           </div>
 
+          {/* Confirm Password */}
           <div className="relative">
             <label className="block text-gray-700">Confirm Password</label>
             <input
@@ -193,13 +201,6 @@ export default function SignUpPage() {
           Already have an account?{" "}
           <Link href="/auth/login" className="text-blue-600 hover:underline">
             Login
-          </Link>
-          <br />
-          <Link
-            href="/forgot-password"
-            className="text-blue-600 hover:underline mt-1 inline-block"
-          >
-            Forgot password?
           </Link>
         </div>
       </div>

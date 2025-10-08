@@ -27,7 +27,7 @@ export default function PaymentSuccessPage() {
 
         if (res.ok && data.order) {
           setOrder(data.order);
-          setStatus("✅ Payment successful!");
+          setStatus("Payment successful!");
         } else {
           setStatus(data.error || "Payment verification failed.");
         }
@@ -41,14 +41,14 @@ export default function PaymentSuccessPage() {
   }, [reference, orderId]);
 
   const handleUpload = async () => {
-    if (!file) return setUploadMessage("❌ Please select a receipt file");
+    if (!file) return setUploadMessage("Please select a receipt file");
 
     // Basic validation
     if (file.size > 5 * 1024 * 1024) {
-      return setUploadMessage("❌ File too large (max 5MB)");
+      return setUploadMessage("File too large (max 5MB)");
     }
     if (!["image/jpeg", "image/png", "application/pdf"].includes(file.type)) {
-      return setUploadMessage("❌ Only JPG, PNG, or PDF allowed");
+      return setUploadMessage("Only JPG, PNG, or PDF allowed");
     }
 
     const formData = new FormData();
@@ -65,13 +65,13 @@ export default function PaymentSuccessPage() {
 
       const data = await res.json();
       if (res.ok && data.success) {
-        setUploadMessage("✅ Receipt uploaded, waiting for confirmation");
+        setUploadMessage(" Receipt uploaded, waiting for confirmation");
       } else {
-        setUploadMessage("❌ " + (data.error || "Upload failed"));
+        setUploadMessage("" + (data.error || "Upload failed"));
       }
     } catch (err) {
       console.error(err);
-      setUploadMessage("❌ Upload failed, try again.");
+      setUploadMessage("Upload failed, try again.");
     }
   };
 

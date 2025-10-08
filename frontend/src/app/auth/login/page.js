@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useAuth } from "../../../context/AuthContext";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import toast, { Toaster } from "react-hot-toast";
 
 export default function LoginPage() {
   const {
@@ -12,7 +13,6 @@ export default function LoginPage() {
     handleSubmit,
     formState: { errors },
   } = useForm();
-
   const { login } = useAuth();
   const router = useRouter();
 
@@ -21,9 +21,11 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
 
   const onSubmit = async (data) => {
+    setMessage(""); // Reset inline message
+    const toastId = toast.loading("Logging in... ⏳");
+
     try {
       setLoading(true);
-      setMessage("");
 
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/login`, {
         method: "POST",
@@ -31,31 +33,36 @@ export default function LoginPage() {
         body: JSON.stringify(data),
       });
 
-      if (!res.ok) {
-        const json = await res.json();
-        throw new Error(json.message || "Login failed!");
-      }
-
       const result = await res.json();
+
+      if (!res.ok) throw new Error(result.message || "Login failed!");
+
       login(result.token, result.user);
+      toast.success("Logged in successfully! ✅", { id: toastId });
       router.push("/");
     } catch (err) {
-      setMessage(err.message || "Login failed!");
+      console.error(err);
+      setMessage(err.message || "Login failed!"); // Inline error
+      toast.error("Login failed 😢", { id: toastId }); // Toast error
     } finally {
       setLoading(false);
     }
   };
 
   const handleGoogleLogin = () => {
-    setLoading(true);
+    toast.loading("Redirecting to Google... ⏳");
     window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/auth/google`;
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+      {/* Toast container */}
+      <Toaster position="top-right" />
+
       <div className="bg-white p-8 rounded shadow w-full max-w-md">
         <h2 className="text-2xl font-bold mb-4 text-center">Login</h2>
 
+        {/* Inline error */}
         {message && <p className="mb-4 text-center text-red-500">{message}</p>}
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">

@@ -1,3 +1,5 @@
+import prisma from "../config/prisma.js";
+
 export const getUserActivity = async (req, res) => {
   try {
     const orderActivities = await prisma.order.findMany({

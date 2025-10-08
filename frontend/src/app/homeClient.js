@@ -6,6 +6,9 @@ import { useState, useEffect } from "react";
 import HeroCarousel from "../components/heroCarousel";
 import { fetcher } from "../../utils/api";
 import { useCart } from "../context/cartContext";
+import { useAuth } from "../context/AuthContext";
+import { Heart } from "lucide-react";
+import toast from "react-hot-toast";
 
 export default function HomeClient({
   initialCategories = [],
@@ -15,8 +18,10 @@ export default function HomeClient({
   const [products, setProducts] = useState(initialProducts);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [wishlist, setWishlist] = useState([]);
 
   const { addToCart } = useCart();
+  const { token } = useAuth();
 
   useEffect(() => {
     const loadData = async () => {
@@ -26,6 +31,17 @@ export default function HomeClient({
         const prods = await fetcher("/products");
         setCategories(cats);
         setProducts(prods);
+
+        if (token) {
+          const res = await fetch(
+            `${process.env.NEXT_PUBLIC_API_URL}/wishlist`,
+            {
+              headers: { Authorization: `Bearer ${token}` },
+            }
+          );
+          const data = await res.json();
+          setWishlist(data.wishlist?.map((item) => item.productId) || []);
+        }
       } catch (err) {
         console.error("Failed to fetch data:", err);
         setError("Failed to load products. Please try again later.");
@@ -35,28 +51,57 @@ export default function HomeClient({
     };
 
     loadData();
-  }, []);
+  }, [token]);
 
-  const getImageSrc = (img) => {
-    if (!img) return "/images/Bags.jpg"; // fallback
-    return img.startsWith("http") ? img : img;
+  const getImageSrc = (img) =>
+    !img ? "/images/Bags.jpg" : img.startsWith("http") ? img : img;
+
+  const toggleWishlist = async (productId) => {
+    if (!token) return toast.error("Please login to add to wishlist!");
+
+    const inWishlist = wishlist.includes(productId);
+
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/wishlist/${productId}`,
+        {
+          method: inWishlist ? "DELETE" : "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      const data = await res.json();
+
+      if (data.success) {
+        setWishlist(
+          inWishlist
+            ? wishlist.filter((id) => id !== productId)
+            : [...wishlist, productId]
+        );
+        toast.success(
+          inWishlist ? "Removed from wishlist ❌" : "Added to wishlist ❤️"
+        );
+      } else {
+        toast.error(data.message || "Something went wrong");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Something went wrong 😢");
+    }
   };
 
-  if (loading) {
+  if (loading)
     return (
       <div className="flex justify-center items-center h-[500px]">
         <p className="text-xl font-semibold">Loading products...</p>
       </div>
     );
-  }
-
-  if (error) {
+  if (error)
     return (
       <div className="flex justify-center items-center h-[500px] text-red-500">
         {error}
       </div>
     );
-  }
 
   return (
     <div className="space-y-24">
@@ -99,7 +144,7 @@ export default function HomeClient({
           {products.map((p) => (
             <div
               key={p.id}
-              className="bg-white rounded-lg shadow-md overflow-hidden hover:scale-105 transform transition duration-300"
+              className="relative bg-white rounded-lg shadow-md overflow-hidden hover:scale-105 transform transition duration-300"
             >
               <Image
                 src={getImageSrc(p.img)}
@@ -108,6 +153,21 @@ export default function HomeClient({
                 height={400}
                 className="w-full h-64 object-cover"
               />
+
+              {/* Wishlist Heart */}
+              <button
+                onClick={() => toggleWishlist(p.id)}
+                className="absolute top-2 right-2 p-1 bg-white rounded-full shadow hover:bg-gray-100 transition transform hover:scale-110"
+              >
+                <Heart
+                  className={`w-6 h-6 ${
+                    wishlist.includes(p.id)
+                      ? "text-red-500"
+                      : "text-gray-500 hover:text-red-500 transition-colors"
+                  }`}
+                />
+              </button>
+
               <div className="p-4">
                 <h3 className="text-lg font-semibold">{p.name}</h3>
                 <p className="text-purple-600 font-bold">₦{p.price}</p>

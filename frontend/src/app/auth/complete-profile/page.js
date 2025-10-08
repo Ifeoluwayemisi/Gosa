@@ -4,13 +4,14 @@ import { useForm } from "react-hook-form";
 import { useState, useEffect } from "react";
 import { useAuth } from "../../../context/AuthContext";
 import { useRouter } from "next/navigation";
+import toast, { Toaster } from "react-hot-toast";
 
 export default function CompleteProfilePage() {
   const { user, token, login } = useAuth();
   const router = useRouter();
   const [file, setFile] = useState(null);
-  const [previewSrc, setPreviewSrc] = useState("/images/avatar.jpg"); // ✅ default avatar
-  const [imageLoaded, setImageLoaded] = useState(false); // ✅ shimmer control
+  const [previewSrc, setPreviewSrc] = useState("/images/avatar.jpg");
+  const [imageLoaded, setImageLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -21,7 +22,7 @@ export default function CompleteProfilePage() {
     reset,
   } = useForm();
 
-  // ✅ Pre-fill form with user data
+  // Pre-fill form with user data
   useEffect(() => {
     if (user) {
       const [street = "", city = "", state = "", country = "", postal = ""] = (
@@ -39,18 +40,39 @@ export default function CompleteProfilePage() {
     }
   }, [user, reset]);
 
-  // ✅ Handle image preview updates
+  // Update image preview
   useEffect(() => {
-    if (file) {
-      setPreviewSrc(URL.createObjectURL(file));
-    } else if (user?.profileImage) {
+    if (file) setPreviewSrc(URL.createObjectURL(file));
+    else if (user?.profileImage)
       setPreviewSrc(`${process.env.NEXT_PUBLIC_API_URL}${user.profileImage}`);
-    } else {
-      setPreviewSrc("/images/avatar.jpg");
-    }
+    else setPreviewSrc("/images/avatar.jpg");
   }, [file, user]);
 
+  // Handle file input with toast
+  const handleFileChange = (e) => {
+    const selectedFile = e.target.files[0];
+    if (!selectedFile) return;
+
+    setFile(selectedFile);
+    setImageLoaded(false);
+
+    const toastId = toast.loading("Uploading avatar... ⏳");
+
+    // Show preview immediately
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setPreviewSrc(reader.result);
+      toast.success("Avatar ready! ✅", { id: toastId });
+    };
+    reader.onerror = () => {
+      toast.error("Failed to load image 😢", { id: toastId });
+    };
+    reader.readAsDataURL(selectedFile);
+  };
+
+  // Submit form
   const onSubmit = async (data) => {
+    const toastId = toast.loading("Saving profile... ⏳");
     try {
       setLoading(true);
       setMessage("");
@@ -84,10 +106,12 @@ export default function CompleteProfilePage() {
         throw new Error(result.error || "Failed to complete profile");
 
       login(token, result.user);
-      router.push("/");
+      toast.success("Profile updated successfully! ✅", { id: toastId });
+      router.push("/"); // redirect after success
     } catch (err) {
       console.error("Complete profile error:", err);
       setMessage(err.message);
+      toast.error(err.message || "Something went wrong 😢", { id: toastId });
     } finally {
       setLoading(false);
     }
@@ -95,6 +119,9 @@ export default function CompleteProfilePage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-blue-50 px-4">
+      {/* Toast container */}
+      <Toaster position="top-right" />
+
       <div className="bg-white/90 backdrop-blur-md p-8 rounded-2xl shadow-lg w-full max-w-lg border border-gray-100">
         <h2 className="text-2xl font-bold mb-6 text-gray-800 text-center">
           Complete Your Profile
@@ -105,20 +132,18 @@ export default function CompleteProfilePage() {
         )}
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-          {/* ✅ Profile Image Upload */}
+          {/* Profile Image */}
           <div className="flex flex-col items-center">
             <label className="block text-gray-700 mb-2 font-medium">
               Profile Image
             </label>
-
             <div className="relative group">
-              {/* Shimmer while loading */}
               {!previewSrc ? (
-                <div className="w-28 h-28 rounded-full bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 animate-pulse"></div>
+                <div className="w-28 h-28 rounded-full bg-gray-200 animate-pulse"></div>
               ) : (
                 <div className="relative">
                   {!imageLoaded && (
-                    <div className="absolute inset-0 w-28 h-28 rounded-full bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 animate-pulse"></div>
+                    <div className="absolute inset-0 w-28 h-28 rounded-full bg-gray-200 animate-pulse"></div>
                   )}
                   <img
                     src={previewSrc}
@@ -143,10 +168,7 @@ export default function CompleteProfilePage() {
                 type="file"
                 accept="image/*"
                 className="hidden"
-                onChange={(e) => {
-                  setFile(e.target.files[0]);
-                  setImageLoaded(false); // reset shimmer when selecting a new file
-                }}
+                onChange={handleFileChange}
               />
             </div>
 
@@ -157,7 +179,7 @@ export default function CompleteProfilePage() {
             )}
           </div>
 
-          {/* Input Fields */}
+          {/* Form Fields */}
           {[
             { label: "Full Name", name: "name", type: "text" },
             { label: "Phone", name: "phone", type: "text" },

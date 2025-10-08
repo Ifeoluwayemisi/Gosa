@@ -51,7 +51,7 @@ model Product {
   customizations Customization[]
   cartItems      CartItem[]
   couponProducts CouponProduct[]
-  wishlists   Wishlist[]
+  wishlists      Wishlist[]
   isActive       Boolean         @default(true)
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
@@ -254,6 +254,7 @@ model Wishlist {
   userId    Int
   product   Product  @relation(fields: [productId], references: [id])
   productId Int
+  lastKnownPrice Float?
   createdAt DateTime @default(now())
 }
 

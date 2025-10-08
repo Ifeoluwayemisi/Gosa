@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import prisma from "./config/prisma.js";
+import "./services/cron.js";
 import authRoutes from "./routes/authRoutes.js";
 import  userRoutes from "./routes/UserRoutes.js";
 import categoryRoutes from "./routes/categoryRoutes.js";
@@ -13,6 +14,8 @@ import dashboardRoutes from "./routes/dashboardRoutes.js";
 import orderAdminRoutes from "./routes/admin/orderRoutes.js";
 import paymentRoutes from "./routes/paymentRoute.js";
 import orderRoutes from "./routes/orderRoutes.js";
+import wishListRoutes from "./routes/wishlistRoutes.js";
+import notificationRoutes from "./routes/notificationRoutes.js";
 
 dotenv.config();
 const app = express();
@@ -31,6 +34,9 @@ app.use("/api/admin", orderAdminRoutes);
 app.use("/api/payment", paymentRoutes);
 app.use("/api/user/", userRoutes);
 app.use("/api/orders", orderRoutes);
+app.use("/api/wishlist", wishListRoutes)
+app.use("/uploads", express.static("uploads"));
+app.use("/api/notifications", notificationRoutes)
 
 // app.use("/api/", )
 

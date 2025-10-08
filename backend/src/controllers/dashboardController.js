@@ -1,9 +1,8 @@
-// controllers/dashboardController.js
 import prisma from "../config/prisma.js";
 
-// ---------------------------
+
 // Dashboard Summary Controller
-// ---------------------------
+
 export const getDashboardOverview = async (req, res) => {
   try {
     const userId = req.user.id;
