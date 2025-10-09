@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,174 +7,19 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id                Int                @id @default(autoincrement())
-  name              String
-  email             String             @unique
-  password          String?
-  googleId          String?            @unique
-  profileImage            String?
-  profileComplete   Boolean            @default(false)
-  phone             String?            
-  provider          String             @default("local")
-  role              Role               @default(CUSTOMER)
-  orders            Order[]
-  activityLogs      ActivityLog[]
-  cart              Cart[]
-  customizations    Customization[]
-  couponRedemptions CouponRedemption[]
-  addresses         Address[]
-  wishlist       Wishlist[]
-  notifications  Notification[]
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  isDeleted         Boolean            @default(false)
-}
-
-model Product {
-  id             Int             @id @default(autoincrement())
-  name           String
-  categoryId     Int
-  category       Category        @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  price          Float
-  description    String
-  images         ProductImage[]
-  stock          Int?
-  variants       Variant[]
-  orderItems     OrderItem[]
-  customizations Customization[]
-  cartItems      CartItem[]
-  couponProducts CouponProduct[]
-  wishlists      Wishlist[]
-  isActive       Boolean         @default(true)
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  isDeleted      Boolean         @default(false)
-}
-
-model ProductImage {
-  id        Int     @id @default(autoincrement())
-  product   Product @relation(fields: [productId], references: [id])
-  productId Int
-  url       String
-  altText   String?
-}
-
-model ActivityLog {
+model activitylog {
   id        Int      @id @default(autoincrement())
-  user      User?    @relation(fields: [userId], references: [id])
   userId    Int?
-  action    String // e.g. "LOGIN", "ADD_TO_CART", "ORDER_PLACED"
-  metadata  Json? // store extra details like { productId: 1, quantity: 2 }
+  action    String
+  metadata  Json?
   createdAt DateTime @default(now())
+  user      user?    @relation(fields: [userId], references: [id], map: "ActivityLog_userId_fkey")
+
+  @@index([userId], map: "ActivityLog_userId_fkey")
 }
 
-model Order {
-  id                Int                @id @default(autoincrement())
-  user              User               @relation(fields: [userId], references: [id])
-  userId            Int
-  status            OrderStatus        @default(PENDING)
-  total             Float
-  items             OrderItem[]
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  isDeleted         Boolean            @default(false)
-  subtotal          Float
-  discount          Float              @default(0)
-  shipping          Float              @default(0)
-  tax               Float              @default(0)
-  shippingAddress   Json
-  payments          Payment[]
-  couponRedemptions CouponRedemption[]
-}
-
-model Variant {
-  id         Int         @id @default(autoincrement())
-  product    Product     @relation(fields: [productId], references: [id])
-  productId  Int
-  sku        String
-  attributes Json // e.g. { "color": "Black", "size": "42" }
-  stock      Int
-  price      Float
-  isDeleted  Boolean     @default(false)
-  orders     OrderItem[]
-  CartItem   CartItem[]
-
-  @@unique([productId, sku])
-}
-
-model OrderItem {
+model address {
   id        Int     @id @default(autoincrement())
-  order     Order   @relation(fields: [orderId], references: [id])
-  orderId   Int
-  product   Product @relation(fields: [productId], references: [id])
-  productId Int
-  quantity  Int
-  price     Float
-  isDeleted Boolean @default(false)
-  variantId Int
-  variant   Variant @relation(fields: [variantId], references: [id])
-}
-
-model Customization {
-  id        Int      @id @default(autoincrement())
-  product   Product  @relation(fields: [productId], references: [id])
-  productId Int
-  user      User     @relation(fields: [userId], references: [id])
-  userId    Int
-  options   Json
-  createdAt DateTime @default(now())
-  isDeleted Boolean  @default(false)
-}
-
-model Cart {
-  id        Int        @id @default(autoincrement())
-  user      User       @relation(fields: [userId], references: [id])
-  userId    Int
-  items     CartItem[]
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  isDeleted Boolean    @default(false)
-}
-
-model CartItem {
-  id        Int     @id @default(autoincrement())
-  cart      Cart    @relation(fields: [cartId], references: [id])
-  cartId    Int
-  product   Product @relation(fields: [productId], references: [id])
-  productId Int
-  variant   Variant @relation(fields: [variantId], references: [id])
-  variantId Int
-  quantity  Int
-  subtotal  Float
-  discount  Float   @default(0)
-  shipping  Float   @default(0)
-  tax       Float   @default(0)
-  isDeleted Boolean @default(false)
-}
-
-model Payment {
-  id        Int           @id @default(autoincrement())
-  order     Order         @relation(fields: [orderId], references: [id])
-  orderId   Int
-  amount    Float
-  method    PaymentMethod
-  status    PaymentStatus @default(PENDING)
-  createdAt DateTime      @default(now())
-  isDeleted Boolean       @default(false)
-}
-
-model Category {
-  id               Int              @id @default(autoincrement())
-  name             String           @unique
-  products         Product[]
-  couponCategories CouponCategory[]
-  isDeleted        Boolean          @default(false)
-}
-
-model Address {
-  id        Int     @id @default(autoincrement())
-  user      User    @relation(fields: [userId], references: [id])
   userId    Int
   fullName  String?
   phone     String?
@@ -191,98 +30,287 @@ model Address {
   postal    String
   isDefault Boolean @default(false)
   isDeleted Boolean @default(false)
+  label     String?
+  user      user    @relation(fields: [userId], references: [id], map: "Address_userId_fkey")
+
+  @@index([userId], map: "Address_userId_fkey")
 }
 
-model Coupon {
-  id           Int          @id @default(autoincrement())
-  code         String       @unique
-  discountType DiscountType
-  value        Float // % or fixed amount
-  expiresAt    DateTime
-  isActive     Boolean      @default(true)
+model cart {
+  id        Int        @id @default(autoincrement())
+  userId    Int
+  createdAt DateTime   @default(now())
+  updatedAt DateTime
+  isDeleted Boolean    @default(false)
+  user      user       @relation(fields: [userId], references: [id], map: "Cart_userId_fkey")
+  cartitem  cartitem[]
 
-  // New fields
-  minOrders    Int  @default(0) // minimum orders before user qualifies
-  usageLimit   Int? // global limit for coupon
-  perUserLimit Int? // per-user redemption cap
-  productLimit Int? // limit on number of products discounted
-
-  // Differentiator
-  type      CouponType @default(ADMIN) // ADMIN | AUTO_REWARD
-  stackable Boolean    @default(false) // can it combine with another?
-
-  // Relations
-  redemptions CouponRedemption[]
-  categories  CouponCategory[]
-  products    CouponProduct[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  isDeleted Boolean  @default(false)
+  @@index([userId], map: "Cart_userId_fkey")
 }
 
-model CouponCategory {
-  id         Int      @id @default(autoincrement())
-  coupon     Coupon   @relation(fields: [couponId], references: [id])
-  couponId   Int
-  category   Category @relation(fields: [categoryId], references: [id])
-  categoryId Int
-}
-
-model CouponProduct {
+model cartitem {
   id        Int     @id @default(autoincrement())
-  coupon    Coupon  @relation(fields: [couponId], references: [id])
-  couponId  Int
-  product   Product @relation(fields: [productId], references: [id])
+  cartId    Int
   productId Int
+  quantity  Int
+  isDeleted Boolean @default(false)
+  discount  Float   @default(0)
+  shipping  Float   @default(0)
+  subtotal  Float
+  tax       Float   @default(0)
+  variantId Int
+  cart      cart    @relation(fields: [cartId], references: [id], map: "CartItem_cartId_fkey")
+  product   product @relation(fields: [productId], references: [id], map: "CartItem_productId_fkey")
+  variant   variant @relation(fields: [variantId], references: [id], map: "CartItem_variantId_fkey")
+
+  @@index([cartId], map: "CartItem_cartId_fkey")
+  @@index([productId], map: "CartItem_productId_fkey")
+  @@index([variantId], map: "CartItem_variantId_fkey")
 }
 
-model CouponRedemption {
+model category {
+  id             Int              @id @default(autoincrement())
+  name           String           @unique(map: "Category_name_key")
+  isDeleted      Boolean          @default(false)
+  couponcategory couponcategory[]
+  products       product[]
+}
+
+model coupon {
+  id               Int                 @id @default(autoincrement())
+  code             String              @unique(map: "Coupon_code_key")
+  discountType     coupon_discountType
+  value            Float
+  expiresAt        DateTime
+  isActive         Boolean             @default(true)
+  minOrders        Int                 @default(0)
+  usageLimit       Int?
+  perUserLimit     Int?
+  productLimit     Int?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime
+  isDeleted        Boolean             @default(false)
+  stackable        Boolean             @default(false)
+  type             coupon_type         @default(ADMIN)
+  couponcategory   couponcategory[]
+  couponproduct    couponproduct[]
+  couponredemption couponredemption[]
+}
+
+model couponcategory {
   id         Int      @id @default(autoincrement())
-  coupon     Coupon   @relation(fields: [couponId], references: [id])
   couponId   Int
-  user       User     @relation(fields: [userId], references: [id])
+  categoryId Int
+  category   category @relation(fields: [categoryId], references: [id], map: "CouponCategory_categoryId_fkey")
+  coupon     coupon   @relation(fields: [couponId], references: [id], map: "CouponCategory_couponId_fkey")
+
+  @@index([categoryId], map: "CouponCategory_categoryId_fkey")
+  @@index([couponId], map: "CouponCategory_couponId_fkey")
+}
+
+model couponproduct {
+  id        Int     @id @default(autoincrement())
+  couponId  Int
+  productId Int
+  coupon    coupon  @relation(fields: [couponId], references: [id], map: "CouponProduct_couponId_fkey")
+  products  product @relation(fields: [productId], references: [id], map: "CouponProduct_productId_fkey")
+
+  @@index([couponId], map: "CouponProduct_couponId_fkey")
+  @@index([productId], map: "CouponProduct_productId_fkey")
+}
+
+model couponredemption {
+  id         Int      @id @default(autoincrement())
+  couponId   Int
   userId     Int
-  order      Order    @relation(fields: [orderId], references: [id])
   orderId    Int
   redeemedAt DateTime @default(now())
+  coupon     coupon   @relation(fields: [couponId], references: [id], map: "CouponRedemption_couponId_fkey")
+  order      order    @relation(fields: [orderId], references: [id], map: "CouponRedemption_orderId_fkey")
+  user       user     @relation(fields: [userId], references: [id], map: "CouponRedemption_userId_fkey")
+
+  @@index([couponId], map: "CouponRedemption_couponId_fkey")
+  @@index([orderId], map: "CouponRedemption_orderId_fkey")
+  @@index([userId], map: "CouponRedemption_userId_fkey")
 }
 
-model Wishlist {
+model customization {
   id        Int      @id @default(autoincrement())
-  user      User     @relation(fields: [userId], references: [id])
-  userId    Int
-  product   Product  @relation(fields: [productId], references: [id])
   productId Int
-  lastKnownPrice Float?
+  userId    Int
+  options   Json
   createdAt DateTime @default(now())
+  isDeleted Boolean  @default(false)
+  product   product  @relation(fields: [productId], references: [id], map: "Customization_productId_fkey")
+  user      user     @relation(fields: [userId], references: [id], map: "Customization_userId_fkey")
+
+  @@index([productId], map: "Customization_productId_fkey")
+  @@index([userId], map: "Customization_userId_fkey")
 }
 
-model Notification {
-  id          Int      @id @default(autoincrement())
-  user        User     @relation(fields: [userId], references: [id])
-  userId      Int
-  title       String
-  message     String
-  type        String   @default("info") // e.g. "order", "promo", "support"
-  isRead      Boolean  @default(false)
-  createdAt   DateTime @default(now())
+model notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  title     String
+  message   String
+  type      String   @default("info")
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      user     @relation(fields: [userId], references: [id], map: "Notification_userId_fkey")
+
+  @@index([userId], map: "Notification_userId_fkey")
 }
 
+model order {
+  id               Int                @id @default(autoincrement())
+  userId           Int
+  status           order_status       @default(PENDING)
+  total            Float
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime
+  discount         Float              @default(0)
+  isDeleted        Boolean            @default(false)
+  shipping         Float              @default(0)
+  shippingAddress  Json
+  subtotal         Float
+  tax              Float              @default(0)
+  couponredemption couponredemption[]
+  user             user               @relation(fields: [userId], references: [id], map: "Order_userId_fkey")
+  orderitem        orderitem[]
+  payment          payment[]
 
-enum Role {
-  ADMIN
-  CUSTOMER
+  @@index([userId], map: "Order_userId_fkey")
 }
 
-enum OrderStatus {
+model orderitem {
+  id        Int     @id @default(autoincrement())
+  orderId   Int
+  productId Int
+  quantity  Int
+  price     Float
+  isDeleted Boolean @default(false)
+  variantId Int
+  order     order   @relation(fields: [orderId], references: [id], map: "OrderItem_orderId_fkey")
+  products  product @relation(fields: [productId], references: [id], map: "OrderItem_productId_fkey")
+  variant   variant @relation(fields: [variantId], references: [id], map: "OrderItem_variantId_fkey")
+
+  @@index([orderId], map: "OrderItem_orderId_fkey")
+  @@index([productId], map: "OrderItem_productId_fkey")
+  @@index([variantId], map: "OrderItem_variantId_fkey")
+}
+
+model payment {
+  id        Int            @id @default(autoincrement())
+  orderId   Int
+  amount    Float
+  method    payment_method
+  status    payment_status @default(PENDING)
+  createdAt DateTime       @default(now())
+  isDeleted Boolean        @default(false)
+  order     order          @relation(fields: [orderId], references: [id], map: "Payment_orderId_fkey")
+
+  @@index([orderId], map: "Payment_orderId_fkey")
+}
+
+model product {
+  id            Int             @id @default(autoincrement())
+  name          String
+  price         Float
+  description   String
+  stock         Int?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime
+  categoryId    Int
+  isActive      Boolean         @default(true)
+  isDeleted     Boolean         @default(false)
+  orderId       Int             @default(0)
+  cartitem      cartitem[]
+  couponproduct couponproduct[]
+  customization customization[]
+  orderitem     orderitem[]
+  category      category        @relation(fields: [categoryId], references: [id], onDelete: Cascade, map: "Product_categoryId_fkey")
+  productimage  productimage[]
+  variants      variant[]
+  wishlist      wishlist[]
+
+  @@index([categoryId], map: "Product_categoryId_fkey")
+}
+
+model productimage {
+  id        Int     @id @default(autoincrement())
+  productId Int
+  url       String
+  altText   String?
+  products  product @relation(fields: [productId], references: [id], map: "ProductImage_productId_fkey")
+
+  @@index([productId], map: "ProductImage_productId_fkey")
+}
+
+model user {
+  id               Int                @id @default(autoincrement())
+  name             String
+  email            String             @unique(map: "User_email_key")
+  password         String?
+  role             user_role          @default(CUSTOMER)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  isDeleted        Boolean            @default(false)
+  googleId         String?            @unique(map: "User_googleId_key")
+  phone            String?
+  profileComplete  Boolean            @default(false)
+  provider         String             @default("local")
+  profileImage     String?
+  activitylog      activitylog[]
+  addresses          address[]
+  cart             cart[]
+  couponredemption couponredemption[]
+  customization    customization[]
+  notification     notification[]
+  order            order[]
+  wishlist         wishlist[]
+}
+
+model variant {
+  id         Int         @id @default(autoincrement())
+  productId  Int
+  sku        String
+  attributes Json
+  stock      Int
+  price      Float
+  isDeleted  Boolean     @default(false)
+  cartitem   cartitem[]
+  orderitem  orderitem[]
+  products   product     @relation(fields: [productId], references: [id], map: "Variant_productId_fkey")
+
+  @@unique([productId, sku], map: "Variant_productId_sku_key")
+}
+
+model wishlist {
+  id             Int      @id @default(autoincrement())
+  userId         Int
+  productId      Int
+  createdAt      DateTime @default(now())
+  lastKnownPrice Float?
+  products       product  @relation(fields: [productId], references: [id], map: "Wishlist_productId_fkey")
+  user           user     @relation(fields: [userId], references: [id], map: "Wishlist_userId_fkey")
+
+  @@index([productId], map: "Wishlist_productId_fkey")
+  @@index([userId], map: "Wishlist_userId_fkey")
+}
+
+enum coupon_discountType {
+  PERCENTAGE
+  FIXED
+}
+
+enum order_status {
   PENDING
   PROCESSING
   SHIPPED
   DELIVERED
 }
 
-enum PaymentMethod {
+enum payment_method {
   CARD
   PAYSTACK
   FLUTTERWAVE
@@ -290,19 +318,19 @@ enum PaymentMethod {
   USSD
 }
 
-enum PaymentStatus {
+enum payment_status {
   PENDING
   COMPLETED
   FAILED
   REFUNDED
 }
 
-enum DiscountType {
-  PERCENTAGE
-  FIXED
+enum user_role {
+  ADMIN
+  CUSTOMER
 }
 
-enum CouponType {
-  ADMIN // manually created by admin
-  AUTO_REWARD // system-generated after purchase/loyalty threshold
+enum coupon_type {
+  ADMIN
+  AUTO_REWARD
 }

@@ -20,34 +20,42 @@ export default function LoginPage() {
   const [message, setMessage] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
-  const onSubmit = async (data) => {
-    setMessage(""); // Reset inline message
-    const toastId = toast.loading("Logging in... ⏳");
+const onSubmit = async (data) => {
+  setMessage("");
+  const toastId = toast.loading("Logging in... ⏳");
 
-    try {
-      setLoading(true);
+  try {
+    setLoading(true);
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
 
-      const result = await res.json();
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.message || "Login failed!");
 
-      if (!res.ok) throw new Error(result.message || "Login failed!");
+    login(result.token, result.user);
 
-      login(result.token, result.user);
-      toast.success("Logged in successfully! ✅", { id: toastId });
-      router.push("/");
-    } catch (err) {
-      console.error(err);
-      setMessage(err.message || "Login failed!"); // Inline error
-      toast.error("Login failed 😢", { id: toastId }); // Toast error
-    } finally {
-      setLoading(false);
+    toast.success("Logged in successfully! ✅", { id: toastId });
+
+    // ✅ Auto redirect if profile incomplete
+    const isProfileComplete =
+      result.user.name && result.user.phone && result.user.address; // adjust fields as per your schema
+    if (!isProfileComplete) {
+      router.push("/auth/complete-profile");
+    } else {
+      router.push("/"); // normal dashboard/home
     }
-  };
+  } catch (err) {
+    console.error(err);
+    setMessage(err.message || "Login failed!");
+    toast.error("Login failed 😢", { id: toastId });
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleGoogleLogin = () => {
     toast.loading("Redirecting to Google... ⏳");

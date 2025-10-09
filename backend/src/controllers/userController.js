@@ -6,7 +6,7 @@ import path from "path";
 const uploadDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
-// ---------------- Multer setup ----------------
+// Multer setup
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),
   filename: (req, file, cb) => {
@@ -17,7 +17,7 @@ const storage = multer.diskStorage({
 
 export const uploadProfileImage = multer({ storage }).single("profileImage");
 
-// ---------------- Complete Profile (1-time only) ----------------
+// Complete Profile (1-time only)
 export const completeProfile = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -30,7 +30,7 @@ export const completeProfile = async (req, res) => {
 
     if (!user) return res.status(404).json({ error: "User not found." });
 
-    // 🚫 Prevent completing profile twice
+    // Prevent completing profile twice
     if (user.profileComplete) {
       return res.status(403).json({
         error:
@@ -38,20 +38,18 @@ export const completeProfile = async (req, res) => {
       });
     }
 
-    // ✅ Validate required fields
+    // Validate required fields
     if (!name || !phone || !addresses) {
-      return res
-        .status(400)
-        .json({
-          error: "All fields (name, phone, addresses, and image) are required.",
-        });
+      return res.status(400).json({
+        error: "All fields (name, phone, addresses, and image) are required.",
+      });
     }
 
     if (!req.file) {
       return res.status(400).json({ error: "Please upload a profile image." });
     }
 
-    // ✅ Parse address
+    // Parse address
     let addressObj;
     try {
       addressObj =
@@ -62,7 +60,7 @@ export const completeProfile = async (req, res) => {
 
     const profileImage = `/uploads/${req.file.filename}`;
 
-    // ✅ Create the address + mark profile complete
+    // Create the address + mark profile complete
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: {
@@ -87,19 +85,19 @@ export const completeProfile = async (req, res) => {
   }
 };
 
-// ---------------- Update Profile ----------------
+
+// Update Profile
 export const updateProfile = async (req, res) => {
   try {
     const userId = req.user.id;
     const { phone, name, addresses } = req.body;
 
-    // ✅ Handle new profile image if uploaded
     let profileImage;
     if (req.file) {
       profileImage = `/uploads/${req.file.filename}`;
     }
 
-    // ✅ Parse and merge addresses
+    // Parse new addresses if provided
     let parsedAddresses;
     if (addresses) {
       try {
@@ -111,35 +109,46 @@ export const updateProfile = async (req, res) => {
       }
     }
 
-    const existingUser = await prisma.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { id: userId },
+      include: { addresses: true },
     });
-    if (!existingUser) return res.status(404).json({ error: "User not found" });
 
-    let updatedAddresses = existingUser.addresses || [];
-    if (parsedAddresses) {
-      updatedAddresses = [
-        ...new Set([...updatedAddresses, ...parsedAddresses]),
-      ];
+    if (!user) return res.status(404).json({ error: "User not found." });
+
+    // Build update payload
+    const data = {
+      ...(phone && { phone }),
+      ...(name && { name }),
+      ...(profileImage && { profileImage }),
+    };
+
+    // If addresses are provided, recreate or update them
+    if (parsedAddresses && parsedAddresses.length) {
+      // For simplicity, remove old addresses and replace with new
+      await prisma.address.deleteMany({ where: { userId } });
+      data.addresses = {
+        create: parsedAddresses.map((a) => ({
+          street: a.street,
+          city: a.city,
+          state: a.state,
+          country: a.country,
+        })),
+      };
     }
 
-    // ✅ Update user info
     const updatedUser = await prisma.user.update({
       where: { id: userId },
-      data: {
-        ...(phone && { phone }),
-        ...(name && { name }),
-        ...(profileImage && { profileImage }),
-        addresses: updatedAddresses,
-      },
+      data,
+      include: { addresses: true },
     });
 
     res.json({
-      message: "Profile updated!",
+      message: "Profile updated successfully ✅",
       user: updatedUser,
     });
   } catch (err) {
     console.error("Update profile error:", err);
-    res.status(500).json({ error: "Failed to update user profile" });
+    res.status(500).json({ error: "Failed to update user profile." });
   }
 };

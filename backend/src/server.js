@@ -16,6 +16,7 @@ import paymentRoutes from "./routes/paymentRoute.js";
 import orderRoutes from "./routes/orderRoutes.js";
 import wishListRoutes from "./routes/wishlistRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
+import addressRoutes from "./routes/addressRoutes.js";
 
 dotenv.config();
 const app = express();
@@ -36,7 +37,9 @@ app.use("/api/user/", userRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/wishlist", wishListRoutes)
 app.use("/uploads", express.static("uploads"));
-app.use("/api/notifications", notificationRoutes)
+app.use("/api/notifications", notificationRoutes);
+app.use("/api/dashboard/addresses", addressRoutes);
+
 
 // app.use("/api/", )
 

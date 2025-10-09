@@ -1,29 +1,45 @@
 import prisma from "../config/prisma.js";
 import paystack from "../config/paystack.js";
-import { sendTemplateEmail } from ".././utils/sendTemplate.js";
-import { generateCoupon } from ".././services/couponServices.js";
+import { sendTemplateEmail } from "../utils/sendTemplate.js";
+import { generateCoupon } from "../services/couponServices.js";
+import { nanoid } from "nanoid"; // ✅ ESM import
 
 export const initiatePayment = async (req, res) => {
   try {
     const { cartItems, totals, paymentMethod } = req.body;
     const userId = req.user.id; // auth middleware ensures user is set
-    const reference = require("nanoid").nanoid();
+    const reference = nanoid(); // ✅ use nanoid() directly
 
     // 1️⃣ Create order
-    const order = await prisma.order.create({
-      data: {
-        userId,
-        status: "PENDING",
-        total: totals.grandTotal,
-        items: {
-          create: cartItems.map((item) => ({
-            productId: item.productId,
-            quantity: item.quantity,
-            price: item.price,
-          })),
-        },
-      },
+    const address = await prisma.address.findUnique({
+      where: { id: req.body.addressId },
     });
+
+    if (!address) {
+      return res
+        .status(404)
+        .json({ success: false, error: "Address not found" });
+    }
+   const order = await prisma.order.create({
+     data: {
+       userId,
+       status: "PENDING",
+       subtotal: totals.subtotal,
+       discount: totals.discount || 0,
+       shipping: totals.shipping || 0,
+       tax: totals.tax || 0,
+       total: totals.grandTotal,
+       shippingAddress: selectedAddressObj, // you still need this defined
+       items: {
+         create: cartItems.map((item) => ({
+           productId: item.productId,
+           quantity: item.quantity,
+           price: item.price,
+         })),
+       },
+     },
+   });
+
 
     // 2️⃣ Create payment record
     await prisma.payment.create({
