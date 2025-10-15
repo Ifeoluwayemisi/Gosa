@@ -32,7 +32,7 @@ export default function DashboardSidebar({ sidebarOpen, setSidebarOpen }) {
 
   const handleLogout = () => {
     logout();
-    router.push("/login");
+    router.push("/auth/login");
   };
 
   return (

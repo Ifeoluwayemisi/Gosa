@@ -8,17 +8,43 @@ export default function DashboardAddressPage() {
   const { token } = useAuth();
   const [addresses, setAddresses] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { register, handleSubmit, reset } = useForm();
+  const { register, handleSubmit, reset, watch } = useForm();
   const newAddressRef = useRef(null);
   const [showForm, setShowForm] = useState(false);
   const formRef = useRef(null);
 
+  // 🌍 Watch state field for live delivery estimate
+  const watchedState = watch("state");
+  const [estimatedDelivery, setEstimatedDelivery] = useState(null);
+
   useEffect(() => {
     if (!token) return;
     fetchAddresses();
+
+    // 🔁 Auto-refresh every 15 seconds
+    const interval = setInterval(() => {
+      fetchAddresses(true);
+    }, 15000);
+
+    return () => clearInterval(interval);
   }, [token]);
 
-  const fetchAddresses = async () => {
+  // 🧠 Simulate delivery estimation logic
+  useEffect(() => {
+    if (!watchedState) {
+      setEstimatedDelivery(null);
+      return;
+    }
+    const state = watchedState.trim().toLowerCase();
+    if (state === "lagos") setEstimatedDelivery("1-2 days");
+    else if (state === "abuja") setEstimatedDelivery("2-3 days");
+    else if (state === "port harcourt" || state === "ogun")
+      setEstimatedDelivery("2-4 days");
+    else if (state === "oyo") setEstimatedDelivery("3-5 days");
+    else setEstimatedDelivery("3-7 days");
+  }, [watchedState]);
+
+  const fetchAddresses = async (isAutoRefresh = false) => {
     try {
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/dashboard/addresses`,
@@ -26,11 +52,10 @@ export default function DashboardAddressPage() {
       );
       const data = await res.json();
       if (data.success) setAddresses(data.addresses);
+      if (!isAutoRefresh) setLoading(false);
     } catch (err) {
       console.error(err);
-      toast.error("Failed to load addresses");
-    } finally {
-      setLoading(false);
+      if (!isAutoRefresh) toast.error("Failed to load addresses");
     }
   };
 
@@ -129,7 +154,9 @@ export default function DashboardAddressPage() {
 
   return (
     <div className="max-w-4xl mx-auto p-6">
-      <h1 className="text-3xl font-bold mb-6 text-gray-800">My Addresses</h1>
+      <h1 className="text-3xl font-bold mb-6 text-gray-800 flex items-center gap-2">
+        My Addresses
+      </h1>
 
       {/* Toggle Form Button */}
       <button
@@ -146,7 +173,7 @@ export default function DashboardAddressPage() {
         {showForm ? "Cancel" : "Add New Address"}
       </button>
 
-      {/* Conditional Form */}
+      {/* Address Form */}
       <div
         ref={formRef}
         className={`overflow-hidden transition-all duration-300 ${
@@ -163,19 +190,44 @@ export default function DashboardAddressPage() {
               placeholder="Label (Home, Work)"
               className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-300 focus:outline-none"
             />
-            <input
-              {...register("street")}
-              placeholder="Street"
+            {/* ✅ Structured Country Select */}
+            <select
+              {...register("country", { required: true })}
+              defaultValue="Nigeria"
               className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-300 focus:outline-none"
-            />
+            >
+              <option value="Nigeria">Nigeria</option>
+              <option value="Ghana">Ghana</option>
+              <option value="Kenya">Kenya</option>
+              <option value="South Africa">South Africa</option>
+              <option value="Other">Other</option>
+            </select>
+            {/* ✅ Structured State Select */}
+            <select
+              {...register("state", { required: true })}
+              className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-300 focus:outline-none"
+            >
+              <option value="">Select State</option>
+              <option value="Lagos">Lagos</option>
+              <option value="Abuja">Abuja (FCT)</option>
+              <option value="Ogun">Ogun</option>
+              <option value="Oyo">Oyo</option>
+              <option value="Port Harcourt">Port Harcourt</option>
+              <option value="Kano">Kano</option>
+              <option value="Kaduna">Kaduna</option>
+              <option value="Edo">Edo</option>
+              <option value="Enugu">Enugu</option>
+              <option value="Anambra">Anambra</option>
+              <option value="Other">Other</option>
+            </select>
             <input
               {...register("city")}
               placeholder="City"
               className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-300 focus:outline-none"
             />
             <input
-              {...register("state")}
-              placeholder="State"
+              {...register("street")}
+              placeholder="Street"
               className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-300 focus:outline-none"
             />
             <input
@@ -183,12 +235,16 @@ export default function DashboardAddressPage() {
               placeholder="Postal Code"
               className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-300 focus:outline-none"
             />
-            <input
-              {...register("country")}
-              placeholder="Country"
-              className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-300 focus:outline-none"
-            />
           </div>
+
+          {/* Live Delivery Estimate Preview */}
+          {estimatedDelivery && (
+            <p className="text-sm text-gray-600 italic">
+              🚚 Estimated Delivery:{" "}
+              <span className="font-medium">{estimatedDelivery}</span>
+            </p>
+          )}
+
           <label className="flex items-center gap-2">
             <input
               type="checkbox"
@@ -203,7 +259,7 @@ export default function DashboardAddressPage() {
         </form>
       </div>
 
-      {/* Address List with Estimated Delivery */}
+      {/* Address List */}
       <div className="space-y-4">
         {addresses.length === 0 ? (
           <p className="text-gray-500">No addresses found.</p>
@@ -229,7 +285,6 @@ export default function DashboardAddressPage() {
                   <p className="text-green-600 text-sm font-medium">Default</p>
                 )}
 
-                {/* Estimated Delivery */}
                 {a.estimatedDelivery && (
                   <p className="text-gray-600 text-sm mt-1">
                     Estimated Delivery: {a.estimatedDelivery}

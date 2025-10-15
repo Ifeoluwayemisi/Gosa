@@ -8,7 +8,7 @@ import { sendTemplateEmail } from "../utils/sendTemplate.js";
 export const checkWishlistUpdates = async () => {
   try {
     const wishlists = await prisma.wishlist.findMany({
-      include: { product: true, user: true },
+      include: { products: true, user: true },
     });
 
     for (const entry of wishlists) {

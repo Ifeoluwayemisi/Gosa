@@ -5,6 +5,8 @@ import { generateToken } from "../utils/generateToken.js";
 import jwt from "jsonwebtoken";
 import { sendTemplateEmail } from "../utils/sendTemplate.js";
 import { notifyAdmin } from "../utils/notifyAdmin.js";
+import { logActivity } from "../utils/activityLogger.js";
+import crypto from "crypto";
 
 export const register = async (req, res) => {
   try {
@@ -41,10 +43,12 @@ export const register = async (req, res) => {
       token,
       user: { ...user, password: undefined },
     });
+    await logActivity(user.id, "REGISTER", { ip: req.ip });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Registration failed" });
   }
+
 };
 
 // Login
@@ -65,6 +69,7 @@ export const login = async (req, res) => {
       token,
       user: { ...user, password: undefined },
     });
+    await logActivity(user.id, "LOGIN", { ip: req.ip });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Login failed" });
@@ -147,5 +152,118 @@ export const googleCallback = async (req, res) => {
       status: "error",
       message: "Google authentication failed",
     });
+  }
+};
+
+export const resetPassword = async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+
+    const resetEntry = await prisma.passwordReset.findUnique({
+      where: { token },
+    });
+    if (!resetEntry || resetEntry.used)
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid or expired reset token" });
+
+    if (resetEntry.expiresAt < new Date())
+      return res
+        .status(400)
+        .json({ success: false, message: "Reset token expired" });
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+
+    await prisma.user.update({
+      where: { id: resetEntry.userId },
+      data: { password: hashed },
+    });
+
+    await prisma.passwordReset.update({
+      where: { id: resetEntry.id },
+      data: { used: true },
+    });
+
+    await logActivity(resetEntry.userId, "RESET_PASSWORD", { ip: req.ip });
+
+    res.json({
+      success: true,
+      message: "Password reset successfully. You may now log in.",
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Password reset failed" });
+  }
+};
+
+// Get Login Activity
+export const getLoginActivity = async (req, res) => {
+  try {
+    const logs = await prisma.activity.findMany({
+      where: { userId: req.user.id, type: "LOGIN" },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+    });
+
+    res.json({ success: true, logs });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to fetch login activity" });
+  }
+};
+
+// Logout All Devices
+export const logoutAllDevices = async (req, res) => {
+  try {
+    // Invalidate by rotating a secret field (optional strategy)
+    const newTokenVersion = Date.now().toString();
+    await prisma.user.update({
+      where: { id: req.user.id },
+      data: { tokenVersion: newTokenVersion },
+    });
+
+    await logActivity(req.user.id, "LOGOUT_ALL", { ip: req.ip });
+    res.json({ success: true, message: "Logged out from all devices" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to log out all devices" });
+  }
+};
+
+
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user)
+      return res
+        .status(404)
+        .json({ success: false, message: "No account found with that email" });
+
+    // generate secure token
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 min
+
+    await prisma.passwordReset.create({
+      data: { userId: user.id, token, expiresAt },
+    });
+
+    const resetUrl = `https://gosa.com/reset-password?token=${token}`;
+
+    await sendTemplateEmail({
+      to: email,
+      subject: "Password Reset Request 🔒",
+      templateName: "reset.html",
+      variables: { name: user.name, resetUrl },
+    });
+
+    await logActivity(user.id, "FORGOT_PASSWORD", { ip: req.ip });
+
+    res.json({ success: true, message: "Reset link sent to your email" });
+  } catch (error) {
+    console.error(error);
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to send reset link" });
   }
 };

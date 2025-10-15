@@ -1,4 +1,5 @@
 import prisma from "../config/prisma.js";
+import { logActivity } from "../utils/activityLogger.js";
 
 //get all orders for the logged-in user
 export const getMyOrders = async (req, res) => {
@@ -6,7 +7,7 @@ export const getMyOrders = async (req, res) => {
     const orders = await prisma.order.findMany({
       where: { userId: req.user.id },
       include: {
-        items: {
+        orderitem: {
           include: { product: true },
         },
         payment: true,
@@ -14,7 +15,11 @@ export const getMyOrders = async (req, res) => {
       orderBy: { createdAt: "desc" },
     });
 
+    // Log that the user viewed their orders
+    await logActivity(req.user.id, "VIEWED_ORDERS", { count: orders.length });
+
     res.json({ success: true, orders });
+    await logActivity(req.user.id, "VIEWED_ORDERS", { count: orders.length });
   } catch (err) {
     console.error("Error fetching orders:", err);
     res.status(500).json({ success: false, error: "Failed to fetch orders" });
@@ -29,24 +34,20 @@ export const getOrderById = async (req, res) => {
     const order = await prisma.order.findUnique({
       where: { id: parseInt(id) },
       include: {
-        items: { include: { product: true } },
+        orderitem: { include: { product: true } },
         payment: true,
-        address: true, // shipping address
-        coupon: true, // applied coupon, if any
+        address: true,
+        coupon: true,
       },
     });
 
-    if (!order) {
+    if (!order)
       return res.status(404).json({ success: false, error: "Order not found" });
-    }
 
-    // Only allow the owner to view their order
-    if (order.userId !== req.user.id) {
+    if (order.userId !== req.user.id)
       return res.status(403).json({ success: false, error: "Unauthorized" });
-    }
 
-    // Compute subtotal, tax, shipping, and grand total
-    const subtotal = order.items.reduce(
+    const subtotal = order.orderitem.reduce(
       (sum, item) => sum + item.price * item.quantity,
       0
     );
@@ -55,22 +56,26 @@ export const getOrderById = async (req, res) => {
     const discount = order.coupon?.value || 0;
     const total = subtotal + tax + shipping - discount;
 
+    // Log that the user viewed a specific order
+    await logActivity(req.user.id, "VIEWED_ORDER_DETAIL", {
+      orderId: order.id,
+      status: order.status,
+      total,
+    });
+
     res.json({
       success: true,
       order: {
-        id: order.id,
-        items: order.items,
-        payment: order.payment,
-        address: order.address,
-        coupon: order.coupon,
-        status: order.status,
+        ...order,
         subtotal,
         tax,
         shipping,
         discount,
         total,
-        createdAt: order.createdAt,
       },
+    });
+    await logActivity(req.user.id, "VIEWED_ORDER_DETAIL", {
+      orderId: order.id,
     });
   } catch (err) {
     console.error("Error fetching order:", err);
@@ -83,7 +88,7 @@ export const getUserOrders = async (req, res) => {
   try {
     const orders = await prisma.order.findMany({
       where: { userId: req.user.id },
-      include: { items: { include: { variant: true } }, payments: true },
+      include: { orderitem: { include: { variant: true } }, payment: true },
       orderBy: { createdAt: "desc" },
     });
 

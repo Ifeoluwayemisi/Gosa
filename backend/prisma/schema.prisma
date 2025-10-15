@@ -19,19 +19,20 @@ model activitylog {
 }
 
 model address {
-  id        Int     @id @default(autoincrement())
-  userId    Int
-  fullName  String?
-  phone     String?
-  street    String
-  city      String
-  state     String
-  country   String
-  postal    String
-  isDefault Boolean @default(false)
-  isDeleted Boolean @default(false)
-  label     String?
-  user      user    @relation(fields: [userId], references: [id], map: "Address_userId_fkey")
+  id                Int     @id @default(autoincrement())
+  userId            Int
+  fullName          String?
+  phone             String?
+  street            String
+  city              String
+  state             String
+  country           String
+  postal            String
+  isDefault         Boolean @default(false)
+  isDeleted         Boolean @default(false)
+  estimatedDelivery String?
+  label             String?
+  user              user    @relation(fields: [userId], references: [id], map: "Address_userId_fkey")
 
   @@index([userId], map: "Address_userId_fkey")
 }
@@ -40,7 +41,7 @@ model cart {
   id        Int        @id @default(autoincrement())
   userId    Int
   createdAt DateTime   @default(now())
-  updatedAt DateTime
+  updatedAt DateTime   @updatedAt
   isDeleted Boolean    @default(false)
   user      user       @relation(fields: [userId], references: [id], map: "Cart_userId_fkey")
   cartitem  cartitem[]
@@ -88,7 +89,7 @@ model coupon {
   perUserLimit     Int?
   productLimit     Int?
   createdAt        DateTime            @default(now())
-  updatedAt        DateTime
+  updatedAt        DateTime            @updatedAt
   isDeleted        Boolean             @default(false)
   stackable        Boolean             @default(false)
   type             coupon_type         @default(ADMIN)
@@ -167,7 +168,7 @@ model order {
   status           order_status       @default(PENDING)
   total            Float
   createdAt        DateTime           @default(now())
-  updatedAt        DateTime
+  updatedAt        DateTime           @updatedAt
   discount         Float              @default(0)
   isDeleted        Boolean            @default(false)
   shipping         Float              @default(0)
@@ -178,6 +179,7 @@ model order {
   user             user               @relation(fields: [userId], references: [id], map: "Order_userId_fkey")
   orderitem        orderitem[]
   payment          payment[]
+  Transaction      transaction[]
 
   @@index([userId], map: "Order_userId_fkey")
 }
@@ -200,16 +202,46 @@ model orderitem {
 }
 
 model payment {
-  id        Int            @id @default(autoincrement())
-  orderId   Int
-  amount    Float
-  method    payment_method
-  status    payment_status @default(PENDING)
-  createdAt DateTime       @default(now())
-  isDeleted Boolean        @default(false)
-  order     order          @relation(fields: [orderId], references: [id], map: "Payment_orderId_fkey")
+  id              Int            @id @default(autoincrement())
+  orderId         Int
+  amount          Float
+  method          payment_method
+  reference       String         @unique
+  paymentMethodId Int?
+  paymentMethod   paymentMethod? @relation(fields: [paymentMethodId], references: [id])
+  status          payment_status @default(PENDING)
+  createdAt       DateTime       @default(now())
+  isDeleted       Boolean        @default(false)
+  order           order          @relation(fields: [orderId], references: [id], map: "Payment_orderId_fkey")
 
   @@index([orderId], map: "Payment_orderId_fkey")
+}
+
+// User’s saved cards or bank methods
+model paymentMethod {
+  id            Int       @id @default(autoincrement())
+  userId        Int
+  type          String // e.g. "Card", "Paystack", "Flutterwave", "Bank Transfer"
+  maskedCard    String? // e.g. "**** **** **** 1234"
+  accountNumber String? // for bank transfers
+  isDefault     Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  user          user      @relation(fields: [userId], references: [id])
+  payment       payment[]
+}
+
+// Optional: global transaction log (not tied only to order)
+model transaction {
+  id        Int               @id @default(autoincrement())
+  userId    Int
+  amount    Float
+  method    String
+  status    transactionStatus @default(PENDING)
+  reference String?
+  orderId   Int?
+  createdAt DateTime          @default(now())
+  user      user              @relation(fields: [userId], references: [id])
+  order     order?            @relation(fields: [orderId], references: [id])
 }
 
 model product {
@@ -219,7 +251,7 @@ model product {
   description   String
   stock         Int?
   createdAt     DateTime        @default(now())
-  updatedAt     DateTime
+  updatedAt     DateTime        @updatedAt
   categoryId    Int
   isActive      Boolean         @default(true)
   isDeleted     Boolean         @default(false)
@@ -234,6 +266,17 @@ model product {
   wishlist      wishlist[]
 
   @@index([categoryId], map: "Product_categoryId_fkey")
+}
+
+model passwordReset {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  token     String   @unique
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  user      user     @relation(fields: [userId], references: [id], map: "Reset_userId_fkey")
+
+  @@index([userId])
 }
 
 model productimage {
@@ -261,13 +304,16 @@ model user {
   provider         String             @default("local")
   profileImage     String?
   activitylog      activitylog[]
-  addresses          address[]
+  addresses        address[]
   cart             cart[]
   couponredemption couponredemption[]
   customization    customization[]
   notification     notification[]
   order            order[]
   wishlist         wishlist[]
+  paymentMethod    paymentMethod[]
+  transaction      transaction[]
+  passwordReset    passwordReset[]
 }
 
 model variant {
@@ -333,4 +379,10 @@ enum user_role {
 enum coupon_type {
   ADMIN
   AUTO_REWARD
+}
+
+enum transactionStatus {
+  SUCCESS
+  PENDING
+  FAILED
 }

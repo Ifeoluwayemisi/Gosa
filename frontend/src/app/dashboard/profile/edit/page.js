@@ -64,7 +64,7 @@ export default function DashboardProfilePage() {
         formData.append("profileImage", data.profileImage[0]);
       }
 
-      const res = await fetch("/user/update-profile", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/update-profile`, {
         method: "PUT",
         headers: { Authorization: `Bearer ${token}` },
         body: formData,

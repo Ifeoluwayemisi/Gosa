@@ -18,7 +18,8 @@ export default function DashboardLayout({ children }) {
 
       {/* Main area */}
       <div className="flex flex-col flex-1 overflow-hidden">
-        {/* Header / Topbar */}
+        
+        {/* Header*/}
         <DashboardHeader setSidebarOpen={setSidebarOpen} />
 
         {/* Main Content */}

@@ -33,7 +33,7 @@ app.use("/api/checkout", checkRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/admin", orderAdminRoutes);
 app.use("/api/payment", paymentRoutes);
-app.use("/api/user/", userRoutes);
+app.use("/api/users/", userRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/wishlist", wishListRoutes)
 app.use("/uploads", express.static("uploads"));

@@ -8,7 +8,7 @@ export const checkout = async (req, res) => {
     const userId = req.user.id;
     const userEmail = email || req.user.email;
 
-    const shopUrl = process.env.FRONTEND_URL || "https://yourshop.com";
+    const shopUrl = process.env.FRONTEND_URL || "https://gosa.com";
 
     const transaction = await prisma.$transaction(async (prisma) => {
       //  Get user cart

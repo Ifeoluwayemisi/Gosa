@@ -32,8 +32,13 @@ export default function DashboardHome() {
           totalOrders: orders.length,
           totalSpent,
           activeCoupons: coupons.length,
-          recentActivity: activity.slice(0, 5),
+          recentActivity: activity.activities?.slice(0, 5) || [],
+          activityMeta: {
+            page: activity.page,
+            totalPages: activity.totalPages,
+          },
         });
+
       } catch (err) {
         console.error(err);
       } finally {

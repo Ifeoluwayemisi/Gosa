@@ -1,61 +1,60 @@
 import prisma from "../config/prisma.js";
 
-// Get all addresses for a user
+// 🕒 Delivery time estimator (mock logic for now)
+const calculateDeliveryTime = (address) => {
+  if (!address?.state) return "Unknown";
+
+  const state = address.state.trim().toLowerCase();
+
+  switch (state) {
+    case "lagos":
+      return "1-2 days";
+    case "abuja":
+      return "2-3 days";
+    case "port harcourt":
+      return "2-4 days";
+    case "ogun":
+      return "2-4 days";
+    case "oyo":
+      return "3-5 days";
+    default:
+      return "3-7 days";
+  }
+};
+
+// 🏠 Get all addresses for user
 export const getUserAddresses = async (req, res) => {
   try {
     const addresses = await prisma.address.findMany({
       where: { userId: req.user.id },
       orderBy: { isDefault: "desc" },
     });
+
     res.json({ success: true, addresses });
   } catch (err) {
-    console.error(err);
-    res
-      .status(500)
-      .json({ success: false, error: "Failed to fetch addresses" });
-  }
-};
-
-// Simple mock function — replace with real logic / API if available
-const calculateDeliveryTime = (address) => {
-  // Example logic
-  if (address.state.toLowerCase() === "lagos") return "1-2 days";
-  if (address.state.toLowerCase() === "abuja") return "2-3 days";
-  return "3-7 days"; // default
-};
-
-export const getUserAddressesWithDelivery = async (req, res) => {
-  try {
-    const addresses = await prisma.address.findMany({
-      where: { userId: req.user.id },
-      orderBy: { isDefault: "desc" },
+    console.error("Error fetching addresses:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch addresses",
     });
-
-    // Add delivery estimate to each
-    const addressesWithDelivery = addresses.map((addr) => ({
-      ...addr,
-      estimatedDelivery: calculateDeliveryTime(addr),
-    }));
-
-    res.json({ success: true, addresses: addressesWithDelivery });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, error: "Failed to fetch addresses" });
   }
 };
 
-// Add new address
+// ➕ Add new address
 export const addAddress = async (req, res) => {
   try {
     const { label, street, city, state, postal, country, isDefault } = req.body;
 
-    // If isDefault true, unset any other default
+    // Unset old default if this one is marked default
     if (isDefault) {
       await prisma.address.updateMany({
         where: { userId: req.user.id },
         data: { isDefault: false },
       });
     }
+
+    // Calculate estimated delivery
+    const estimatedDelivery = calculateDeliveryTime({ state });
 
     const address = await prisma.address.create({
       data: {
@@ -67,22 +66,37 @@ export const addAddress = async (req, res) => {
         postal,
         country,
         isDefault: !!isDefault,
+        estimatedDelivery,
       },
     });
 
     res.json({ success: true, address });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, error: "Failed to add address" });
+    console.error("Error adding address:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to add address",
+    });
   }
 };
 
-// Update address
+// ✏️ Update existing address
 export const updateAddress = async (req, res) => {
   try {
     const { id } = req.params;
     const { label, street, city, state, postal, country, isDefault } = req.body;
 
+    // Ensure address exists and belongs to this user
+    const existing = await prisma.address.findFirst({
+      where: { id: parseInt(id), userId: req.user.id },
+    });
+
+    if (!existing)
+      return res
+        .status(404)
+        .json({ success: false, error: "Address not found" });
+
+    // If isDefault is true, unset previous defaults
     if (isDefault) {
       await prisma.address.updateMany({
         where: { userId: req.user.id },
@@ -90,8 +104,14 @@ export const updateAddress = async (req, res) => {
       });
     }
 
+    // Only recalc if state changed or if none exists
+    let estimatedDelivery = existing.estimatedDelivery;
+    if (state && state.toLowerCase() !== existing.state?.toLowerCase()) {
+      estimatedDelivery = calculateDeliveryTime({ state });
+    }
+
     const address = await prisma.address.update({
-      where: { id: parseInt(id), userId: req.user.id },
+      where: { id: existing.id },
       data: {
         label,
         street,
@@ -100,26 +120,35 @@ export const updateAddress = async (req, res) => {
         postal,
         country,
         isDefault: !!isDefault,
+        estimatedDelivery,
       },
     });
 
     res.json({ success: true, address });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, error: "Failed to update address" });
+    console.error("Error updating address:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to update address",
+    });
   }
 };
 
-// Delete address
+// ❌ Delete address
 export const deleteAddress = async (req, res) => {
   try {
     const { id } = req.params;
+
     await prisma.address.delete({
       where: { id: parseInt(id), userId: req.user.id },
     });
-    res.json({ success: true, message: "Address deleted" });
+
+    res.json({ success: true, message: "Address deleted successfully" });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, error: "Failed to delete address" });
+    console.error("Error deleting address:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to delete address",
+    });
   }
 };

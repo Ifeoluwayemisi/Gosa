@@ -9,22 +9,21 @@ export default function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState("CARD");
   const [message, setMessage] = useState("");
   const [showForm, setShowForm] = useState(false);
-  const [token, setToken] = useState(null); // ✅ token state
+  const [token, setToken] = useState(null);
   const formRef = useRef(null);
   const API = process.env.NEXT_PUBLIC_API_URL;
 
-  // Load token from localStorage on client
+  // ✅ Load token on mount
   useEffect(() => {
     setToken(localStorage.getItem("token"));
   }, []);
 
-  // Fetch addresses once token is available
+  // ✅ Fetch addresses
   useEffect(() => {
     if (!token) return;
-
     const fetchAddresses = async () => {
       try {
-        const res = await fetch(`${API}/dashboard/addresses`, {
+        const res = await fetch(`${API}/dashboard/addresses/`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
@@ -37,10 +36,10 @@ export default function CheckoutPage() {
         console.error("Failed to fetch addresses:", err);
       }
     };
-
     fetchAddresses();
   }, [token, API]);
 
+  // ✅ Payment initiation
   const handlePayment = async () => {
     if (!token) return alert("You must be logged in");
     if (!selectedAddress) return alert("Select a shipping address");
@@ -61,14 +60,26 @@ export default function CheckoutPage() {
       });
 
       const data = await res.json();
+
       if (data.success) {
-        if (paymentMethod === "BANK_TRANSFER") {
-          setMessage(
-            `Bank transfer initiated. Follow instructions: ${data.details}`
-          );
-        } else {
+        // ✅ Online payment redirect
+        if (data.paymentUrl) {
           window.location.href = data.paymentUrl;
+          return;
         }
+
+        // ✅ Bank transfer redirect
+        if (paymentMethod === "BANK_TRANSFER") {
+          const params = new URLSearchParams({
+            orderId: data.orderId,
+            reference: data.reference || "bank-transfer",
+          }).toString();
+          window.location.href = `/checkout/success`;
+          return;
+        }
+
+        // ✅ Default success message
+        setMessage("✅ Payment initiated successfully!");
       } else {
         setMessage(data.error || "Payment failed, try again.");
       }
@@ -78,10 +89,10 @@ export default function CheckoutPage() {
     }
   };
 
+  // ✅ Add new address
   const handleAddAddress = async (e) => {
     e.preventDefault();
     if (!token) return;
-
     const formData = new FormData(e.target);
     const newAddress = Object.fromEntries(formData.entries());
 
@@ -107,6 +118,7 @@ export default function CheckoutPage() {
     }
   };
 
+  // ✅ UI
   return (
     <div className="max-w-5xl mx-auto p-6">
       <h1 className="text-3xl font-bold mb-6">Checkout</h1>
@@ -185,28 +197,44 @@ export default function CheckoutPage() {
 
           {/* Address List */}
           {addresses.length === 0 ? (
-            <p>No addresses found. Add one above.</p>
+            <p>No addresses found. Add one in your profile.</p>
           ) : (
             addresses.map((addr) => (
               <div
                 key={addr.id}
-                className="flex flex-col mb-2 p-2 border rounded"
+                className={`flex flex-col mb-2 p-3 border rounded-lg cursor-pointer transition 
+        ${
+          selectedAddress === addr.id
+            ? "border-blue-600 bg-blue-50"
+            : "border-gray-200 hover:bg-gray-50"
+        }
+      `}
+                onClick={() => setSelectedAddress(addr.id)}
               >
-                <div className="flex items-center">
-                  <input
-                    type="radio"
-                    name="address"
-                    value={addr.id}
-                    checked={selectedAddress === addr.id}
-                    onChange={() => setSelectedAddress(addr.id)}
-                    className="mr-2"
-                  />
-                  <span>
-                    {addr.street}, {addr.city}, {addr.state}
-                  </span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <input
+                      type="radio"
+                      name="address"
+                      value={addr.id}
+                      checked={selectedAddress === addr.id}
+                      onChange={() => setSelectedAddress(addr.id)}
+                      className="mr-2 accent-blue-600"
+                    />
+                    <span className="font-medium text-gray-800">
+                      {addr.street}, {addr.city}, {addr.state}
+                    </span>
+                  </div>
+
+                  {addr.isDefault && (
+                    <span className="text-xs bg-blue-600 text-white px-2 py-1 rounded-full">
+                      Default
+                    </span>
+                  )}
                 </div>
+
                 {addr.estimatedDelivery && (
-                  <p className="text-sm text-gray-600 ml-6">
+                  <p className="text-sm text-gray-600 mt-1 ml-6">
                     Estimated Delivery: {addr.estimatedDelivery}
                   </p>
                 )}
@@ -218,6 +246,7 @@ export default function CheckoutPage() {
         {/* Order Summary */}
         <div className="border p-4 rounded">
           <h2 className="text-xl font-semibold mb-4">Order Summary</h2>
+
           {cartItems.map((item) => (
             <div key={item.productId} className="flex justify-between py-1">
               <span>
@@ -226,6 +255,7 @@ export default function CheckoutPage() {
               <span>₦{(item.price * item.quantity).toFixed(2)}</span>
             </div>
           ))}
+
           <hr className="my-2" />
           <p>Subtotal: ₦{totals.subtotal.toFixed(2)}</p>
           <p>Tax: ₦{totals.tax.toFixed(2)}</p>
@@ -249,18 +279,6 @@ export default function CheckoutPage() {
               <option value="BANK_TRANSFER">Bank Transfer</option>
             </select>
           </div>
-
-          {paymentMethod === "BANK_TRANSFER" && (
-            <div className="mt-4 p-4 border rounded bg-gray-50">
-              <p>Please make a transfer to the following account:</p>
-              <p className="font-semibold">Bank: Zenith Bank</p>
-              <p>Account Number: 1234567890</p>
-              <p>Account Name: Handmade Co.</p>
-              <p>
-                After transferring, upload your proof of payment or notify us.
-              </p>
-            </div>
-          )}
 
           {message && <p className="text-red-600 mt-2">{message}</p>}
 

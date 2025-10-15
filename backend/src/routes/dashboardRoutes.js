@@ -16,7 +16,7 @@ router.use(protect);
 router.get("/", getDashboardOverview);
 
 // Orders
-router.get("/orders", getUserOrders);
+router.get("/orders", protect, getUserOrders);
 router.get("/order/:id", getUserOrderById);
 
 // Coupons

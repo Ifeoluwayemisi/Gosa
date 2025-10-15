@@ -2,47 +2,50 @@ import prisma from "../config/prisma.js";
 import paystack from "../config/paystack.js";
 import { sendTemplateEmail } from "../utils/sendTemplate.js";
 import { generateCoupon } from "../services/couponServices.js";
-import { nanoid } from "nanoid"; // ✅ ESM import
+import { nanoid } from "nanoid";
+import { logActivity } from "./activityController.js";
 
+/**
+ * 🧾 INITIATE PAYMENT
+ */
 export const initiatePayment = async (req, res) => {
   try {
-    const { cartItems, totals, paymentMethod } = req.body;
-    const userId = req.user.id; // auth middleware ensures user is set
-    const reference = nanoid(); // ✅ use nanoid() directly
+    const { cartItems, totals, paymentMethod, addressId } = req.body;
+    const userId = req.user.id;
+    const reference = nanoid();
 
-    // 1️⃣ Create order
     const address = await prisma.address.findUnique({
-      where: { id: req.body.addressId },
+      where: { id: addressId },
     });
 
-    if (!address) {
+    if (!address)
       return res
         .status(404)
         .json({ success: false, error: "Address not found" });
-    }
-   const order = await prisma.order.create({
-     data: {
-       userId,
-       status: "PENDING",
-       subtotal: totals.subtotal,
-       discount: totals.discount || 0,
-       shipping: totals.shipping || 0,
-       tax: totals.tax || 0,
-       total: totals.grandTotal,
-       shippingAddress: selectedAddressObj, // you still need this defined
-       items: {
-         create: cartItems.map((item) => ({
-           productId: item.productId,
-           quantity: item.quantity,
-           price: item.price,
-         })),
-       },
-     },
-   });
 
+    // ✅ Create Order
+    const order = await prisma.order.create({
+      data: {
+        userId,
+        status: "PENDING",
+        subtotal: totals.subtotal,
+        discount: totals.discount || 0,
+        shipping: totals.shipping || 0,
+        tax: totals.tax || 0,
+        total: totals.grandTotal,
+        shippingAddress: address,
+        orderitem: {
+          create: cartItems.map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+            price: item.price,
+          })),
+        },
+      },
+    });
 
-    // 2️⃣ Create payment record
-    await prisma.payment.create({
+    // ✅ Create Payment Record
+    const payment = await prisma.payment.create({
       data: {
         orderId: order.id,
         amount: totals.grandTotal,
@@ -52,7 +55,13 @@ export const initiatePayment = async (req, res) => {
       },
     });
 
-    // 3️⃣ Handle payment type
+    // Log activity
+    await logActivity(userId, "INITIATED_PAYMENT", {
+      orderId: order.id,
+      method: paymentMethod,
+      amount: totals.grandTotal,
+    });
+
     if (paymentMethod === "BANK_TRANSFER") {
       return res.json({
         success: true,
@@ -80,6 +89,9 @@ export const initiatePayment = async (req, res) => {
   }
 };
 
+/**
+ * ✅ PAYMENT CALLBACK
+ */
 export const paymentCallback = async (req, res) => {
   try {
     const { reference, orderId } = req.query;
@@ -87,14 +99,14 @@ export const paymentCallback = async (req, res) => {
     const payment = await prisma.payment.findUnique({ where: { reference } });
     if (!payment) return res.status(404).send("Payment not found");
 
-    // Verify online payment only
+    // Verify Paystack Payment
     if (payment.method !== "BANK_TRANSFER") {
       const response = await paystack.transaction.verify({ reference });
       if (response.data.status !== "success") return res.send("Payment failed");
     }
 
-    // Update payment and order
-    await prisma.payment.update({
+    // Update Payment + Order Status
+    const updatedPayment = await prisma.payment.update({
       where: { id: payment.id },
       data: { status: "COMPLETED" },
     });
@@ -107,26 +119,45 @@ export const paymentCallback = async (req, res) => {
 
     const user = order.user;
 
-    // Auto-generate coupon if eligible
+    // Log Payment Transaction
+    await prisma.transaction.create({
+      data: {
+        userId: user.id,
+        paymentId: updatedPayment.id,
+        type: "PAYMENT",
+        status: "SUCCESS",
+        amount: updatedPayment.amount,
+        description: `Payment for Order #${order.id}`,
+      },
+    });
+
+    await logActivity(user.id, "COMPLETED_PAYMENT", {
+      orderId: order.id,
+      reference,
+      amount: payment.amount,
+    });
+
+    // 🎁 Auto-generate reward coupon
     const userOrders = await prisma.order.count({
       where: { userId: user.id, status: "DELIVERED" },
     });
 
-    const minOrdersForCoupon = 10;
-    let coupon = null;
-
-    if (userOrders >= minOrdersForCoupon) {
-      coupon = await generateCoupon({
+    if (userOrders >= 10) {
+      const coupon = await generateCoupon({
         prefix: "AUTO",
         discountType: "PERCENTAGE",
         value: 10,
         usageLimit: 3,
         perUserLimit: 1,
         expiresInDays: 30,
-        minOrders: minOrdersForCoupon,
+        minOrders: 10,
       });
 
-      // Send email
+      await logActivity(user.id, "RECEIVED_REWARD_COUPON", {
+        couponCode: coupon.code,
+        discount: coupon.value,
+      });
+
       if (user.email) {
         await sendTemplateEmail({
           to: user.email,
@@ -142,9 +173,101 @@ export const paymentCallback = async (req, res) => {
       }
     }
 
-    res.send(`Payment successful! ${coupon ? "Coupon sent to email!" : ""}`);
+    res.send("✅ Payment successful! Reward (if any) sent via email.");
   } catch (err) {
     console.error(err);
     res.status(500).send("Payment verification failed");
+  }
+};
+
+/* -------------------------------------------------------------------------- */
+/* 🧭 PAYMENT METHODS MANAGEMENT */
+/* -------------------------------------------------------------------------- */
+
+// 💳 Add a Payment Method
+export const addPaymentMethod = async (req, res) => {
+  try {
+    const { type, provider, last4, isDefault } = req.body;
+
+    if (isDefault) {
+      await prisma.paymentMethod.updateMany({
+        where: { userId: req.user.id },
+        data: { isDefault: false },
+      });
+    }
+
+    const method = await prisma.paymentMethod.create({
+      data: {
+        userId: req.user.id,
+        type,
+        provider,
+        last4,
+        isDefault: isDefault || false,
+      },
+    });
+
+    res.json({ success: true, method });
+  } catch (err) {
+    console.error(err);
+    res
+      .status(500)
+      .json({ success: false, error: "Failed to add payment method" });
+  }
+};
+
+// 🧾 Get All Payment Methods
+export const getPaymentMethods = async (req, res) => {
+  try {
+    const methods = await prisma.paymentMethod.findMany({
+      where: { userId: req.user.id },
+      orderBy: { isDefault: "desc" },
+    });
+    res.json({ success: true, methods });
+  } catch (err) {
+    console.error(err);
+    res
+      .status(500)
+      .json({ success: false, error: "Failed to fetch payment methods" });
+  }
+};
+
+// 🚮 Delete Payment Method
+export const deletePaymentMethod = async (req, res) => {
+  try {
+    const { id } = req.params;
+    await prisma.paymentMethod.delete({
+      where: { id: parseInt(id), userId: req.user.id },
+    });
+    res.json({ success: true, message: "Payment method deleted" });
+  } catch (err) {
+    console.error(err);
+    res
+      .status(500)
+      .json({ success: false, error: "Failed to delete payment method" });
+  }
+};
+
+/* -------------------------------------------------------------------------- */
+/* 💰 TRANSACTIONS HISTORY */
+/* -------------------------------------------------------------------------- */
+
+// 📜 Get All Transactions
+export const getTransactions = async (req, res) => {
+  try {
+    const transactions = await prisma.transaction.findMany({
+      where: { userId: req.user.id },
+      orderBy: { createdAt: "desc" },
+      include: {
+        payment: {
+          select: { reference: true, method: true, amount: true, status: true },
+        },
+      },
+    });
+    res.json({ success: true, transactions });
+  } catch (err) {
+    console.error(err);
+    res
+      .status(500)
+      .json({ success: false, error: "Failed to fetch transactions" });
   }
 };

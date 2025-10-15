@@ -25,18 +25,28 @@ export default function CompleteProfilePage() {
   // Pre-fill form with user data
   useEffect(() => {
     if (user) {
-      const [street = "", city = "", state = "", country = "", postal = ""] = (
-        user.address || ""
-      ).split(", ");
-      reset({
-        name: user.name || "",
-        phone: user.phone || "",
-        street,
-        city,
-        state,
-        country,
-        postal,
-      });
+      if (user.addresses && user.addresses.length > 0) {
+        const addr = user.addresses[0];
+        reset({
+          name: user.name || "",
+          phone: user.phone || "",
+          street: addr.street || "",
+          city: addr.city || "",
+          state: addr.state || "",
+          country: addr.country || "",
+          postal: addr.postal || "",
+        });
+      } else {
+        reset({
+          name: user.name || "",
+          phone: user.phone || "",
+          street: "",
+          city: "",
+          state: "",
+          country: "",
+          postal: "",
+        });
+      }
     }
   }, [user, reset]);
 
@@ -44,7 +54,7 @@ export default function CompleteProfilePage() {
   useEffect(() => {
     if (file) setPreviewSrc(URL.createObjectURL(file));
     else if (user?.profileImage)
-      setPreviewSrc(`${process.env.NEXT_PUBLIC_API_URL}${user.profileImage}`);
+      setPreviewSrc(`${process.env.NEXT_PUBLIC_IMAGE_URL}${user.profileImage}`);
     else setPreviewSrc("/images/avatar.jpg");
   }, [file, user]);
 
@@ -93,7 +103,7 @@ export default function CompleteProfilePage() {
       if (file) formData.append("profileImage", file);
 
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/user/complete-profile`,
+        `${process.env.NEXT_PUBLIC_API_URL}/users/complete-profile`,
         {
           method: "POST",
           headers: { Authorization: `Bearer ${token}` },

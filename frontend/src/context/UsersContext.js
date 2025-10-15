@@ -18,7 +18,7 @@ export function UserProvider({ children }) {
         }
 
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/users/me`,
+          `${process.env.NEXT_PUBLIC_API_URL}/users/me`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -26,7 +26,15 @@ export function UserProvider({ children }) {
           }
         );
 
-        if (!res.ok) throw new Error("Failed to fetch user");
+        if (!res.ok) {
+          console.error(
+            "Fetch failed with status:",
+            res.status,
+            await res.text()
+          );
+          throw new Error("Failed to fetch user");
+        }
+
 
         const data = await res.json();
         setUser(data.user || data); // depending on backend structure

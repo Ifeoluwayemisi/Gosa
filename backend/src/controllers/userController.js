@@ -87,11 +87,19 @@ export const completeProfile = async (req, res) => {
 
 
 // Update Profile
+// Update Profile
 export const updateProfile = async (req, res) => {
   try {
-    const userId = req.user.id;
-    const { phone, name, addresses } = req.body;
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized: No user ID found" });
+    }
 
+    // Ensure req.body exists
+    const body = req.body || {};
+    const { phone, name, addresses } = body;
+
+    // Handle optional profile image
     let profileImage;
     if (req.file) {
       profileImage = `/uploads/${req.file.filename}`;
@@ -101,14 +109,20 @@ export const updateProfile = async (req, res) => {
     let parsedAddresses;
     if (addresses) {
       try {
-        parsedAddresses = JSON.parse(addresses);
-        if (!Array.isArray(parsedAddresses))
-          return res.status(400).json({ error: "Addresses must be an array." });
+        parsedAddresses =
+          typeof addresses === "string" ? JSON.parse(addresses) : addresses;
+
+        if (!Array.isArray(parsedAddresses)) {
+          return res
+            .status(400)
+            .json({ error: "Addresses must be an array." });
+        }
       } catch {
         return res.status(400).json({ error: "Invalid address format." });
       }
     }
 
+    // Fetch existing user
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: { addresses: true },
@@ -118,14 +132,14 @@ export const updateProfile = async (req, res) => {
 
     // Build update payload
     const data = {
-      ...(phone && { phone }),
-      ...(name && { name }),
-      ...(profileImage && { profileImage }),
+      ...(phone ? { phone } : {}),
+      ...(name ? { name } : {}),
+      ...(profileImage ? { profileImage } : {}),
     };
 
-    // If addresses are provided, recreate or update them
+    // Update addresses if provided
     if (parsedAddresses && parsedAddresses.length) {
-      // For simplicity, remove old addresses and replace with new
+      // Remove old addresses
       await prisma.address.deleteMany({ where: { userId } });
       data.addresses = {
         create: parsedAddresses.map((a) => ({
@@ -133,6 +147,8 @@ export const updateProfile = async (req, res) => {
           city: a.city,
           state: a.state,
           country: a.country,
+          postal: a.postal || null, // optional
+          label: a.label || null,   // optional
         })),
       };
     }
@@ -150,5 +166,32 @@ export const updateProfile = async (req, res) => {
   } catch (err) {
     console.error("Update profile error:", err);
     res.status(500).json({ error: "Failed to update user profile." });
+  }
+};
+
+// Get logged-in user profile
+export const getMe = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { addresses: true },
+    });
+
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    const formattedAddress = user.addresses?.[0]
+      ? `${user.addresses[0].street}, ${user.addresses[0].city}, ${user.addresses[0].state}, ${user.addresses[0].country}, ${user.addresses[0].postal}`
+      : "";
+
+    res.json({
+      ...user,
+      address: formattedAddress,
+    });
+  } catch (err) {
+    console.error("Get me error:", err);
+    res.status(500).json({ error: "Failed to fetch user" });
   }
 };

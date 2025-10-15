@@ -20,42 +20,86 @@ export default function LoginPage() {
   const [message, setMessage] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
-const onSubmit = async (data) => {
-  setMessage("");
-  const toastId = toast.loading("Logging in... ⏳");
+  const onSubmit = async (data) => {
+    setMessage("");
+    const toastId = toast.loading("Logging in... ⏳");
 
-  try {
-    setLoading(true);
+    try {
+      setLoading(true);
 
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
+      // 🔹 Step 1: Attempt login
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
 
-    const result = await res.json();
-    if (!res.ok) throw new Error(result.message || "Login failed!");
+      const text = await res.text();
+      let result;
+      try {
+        result = JSON.parse(text);
+      } catch {
+        console.error("Unexpected response:", text.slice(0, 200));
+        throw new Error("Invalid server response (not JSON). Check API URL.");
+      }
 
-    login(result.token, result.user);
+      if (!res.ok) throw new Error(result.message || "Login failed!");
 
-    toast.success("Logged in successfully! ✅", { id: toastId });
+      // 🔹 Step 2: Save token and user immediately
+      login(result.token, result.user);
 
-    // ✅ Auto redirect if profile incomplete
-    const isProfileComplete =
-      result.user.name && result.user.phone && result.user.address; // adjust fields as per your schema
-    if (!isProfileComplete) {
-      router.push("/auth/complete-profile");
-    } else {
-      router.push("/"); // normal dashboard/home
+      // 🔹 Step 3: Delay briefly before fetching profile (backend might still be finalizing)
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // 🔹 Step 4: Fetch fresh profile
+      const userRes = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/users/me`,
+        {
+          headers: {
+            Authorization: `Bearer ${result.token}`,
+          },
+        }
+      );
+
+      const userText = await userRes.text();
+      let freshUser;
+      try {
+        freshUser = JSON.parse(userText);
+      } catch {
+        console.error(
+          "Profile fetch returned non-JSON:",
+          userText.slice(0, 200)
+        );
+        throw new Error("Failed to load profile (invalid JSON).");
+      }
+
+      if (!userRes.ok) {
+        throw new Error(freshUser.message || "Failed to fetch user profile.");
+      }
+
+      toast.success("Logged in successfully! ✅", { id: toastId });
+
+      // 🔹 Step 5: Auto-redirect based on profile completeness
+      const isProfileComplete =
+        freshUser.name && freshUser.phone && freshUser.addresses?.length > 0;
+        
+        console.log("Fetched fresh user:", freshUser);
+
+      if (!isProfileComplete) {
+        router.push("/auth/complete-profile");
+      } else {
+        router.push("/"); // or "/dashboard"
+      }
+    } catch (err) {
+      console.error("Login error:", err);
+      setMessage(err.message || "Login failed!");
+      toast.error(err.message || "Login failed 😢", { id: toastId });
+    } finally {
+      setLoading(false);
     }
-  } catch (err) {
-    console.error(err);
-    setMessage(err.message || "Login failed!");
-    toast.error("Login failed 😢", { id: toastId });
-  } finally {
-    setLoading(false);
-  }
-};
+  };
+
+
 
   const handleGoogleLogin = () => {
     toast.loading("Redirecting to Google... ⏳");
@@ -64,13 +108,10 @@ const onSubmit = async (data) => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      {/* Toast container */}
       <Toaster position="top-right" />
-
       <div className="bg-white p-8 rounded shadow w-full max-w-md">
         <h2 className="text-2xl font-bold mb-4 text-center">Login</h2>
 
-        {/* Inline error */}
         {message && <p className="mb-4 text-center text-red-500">{message}</p>}
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -132,7 +173,7 @@ const onSubmit = async (data) => {
           </Link>
           <br />
           <Link
-            href="/forgot-password"
+            href="/auth/forgot-password"
             className="text-blue-600 hover:underline mt-1 inline-block"
           >
             Forgot password?

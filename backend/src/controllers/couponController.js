@@ -3,6 +3,7 @@ import {
   generateCoupon,
   validateAndApplyCoupon,
 } from "../services/couponServices.js";
+import { logActivity } from "../utils/activityLogger.js"; 
 
 
 // CREATE (Admin)
@@ -16,8 +17,8 @@ export const createCoupon = async (req, res) => {
       perUserLimit,
       expiresInDays,
       minOrders,
-      categories,
-      products,
+      category,
+      product,
     } = req.body;
 
     const coupon = await generateCoupon({
@@ -28,8 +29,15 @@ export const createCoupon = async (req, res) => {
       perUserLimit,
       expiresInDays,
       minOrders,
-      categories: categories || [],
-      products: products || [],
+      couponcategory: category || [],
+      couponproduct: product || [],
+    });
+
+    // 🪶 Log activity
+    await logActivity(req.user.id, "CREATED_COUPON", {
+      code: coupon.code,
+      discount: coupon.value,
+      type: coupon.discountType,
     });
 
     res.json({ message: "Coupon created", coupon });
@@ -44,7 +52,7 @@ export const getCoupons = async (req, res) => {
   try {
     const coupons = await prisma.coupon.findMany({
       where: { isDeleted: false },
-      include: { categories: true, products: true, redemptions: true },
+      include: { couponcategory: true, couponproduct: true, couponredemption: true },
     });
     res.json(coupons);
   } catch (err) {
@@ -58,7 +66,7 @@ export const getCouponById = async (req, res) => {
   try {
     const coupon = await prisma.coupon.findUnique({
       where: { id: parseInt(req.params.id) },
-      include: { categories: true, products: true, redemptions: true },
+      include: { couponcategory: true, couponproduct: true, couponredemption: true },
     });
     if (!coupon) return res.status(404).json({ error: "Coupon not found" });
     res.json(coupon);
@@ -107,20 +115,18 @@ export const applyCoupon = async (req, res) => {
         isActive: true,
         expiresAt: { gt: new Date() },
       },
-      include: { redemptions: true },
+      include: { couponredemption: true },
     });
 
     if (!coupon)
       return res.status(400).json({ error: "Invalid or expired coupon" });
 
-    // Check per user limit
-    const redeemedCount = coupon.redemptions.filter(
+    const redeemedCount = coupon.couponredemption.filter(
       (r) => r.userId === userId
     ).length;
     if (coupon.perUserLimit && redeemedCount >= coupon.perUserLimit)
       return res.status(400).json({ error: "Coupon usage limit reached" });
 
-    // Calculate discount
     let discount = 0;
     if (coupon.discountType === "PERCENTAGE") {
       const subtotal = cartItems.reduce(
@@ -132,7 +138,14 @@ export const applyCoupon = async (req, res) => {
       discount = coupon.value;
     }
 
+    // 🪶 Log coupon use attempt
+    await logActivity(userId, "APPLIED_COUPON", {
+      code,
+      discount,
+    });
+
     res.json({ success: true, discount });
+    await logActivity(req.user.id, "COUPON_REDEEMED", { code });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to apply coupon" });
